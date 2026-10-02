@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import './auth.css';
 import { AppShell } from '@/components/app-shell';
 import { ServiceWorker } from '@/components/service-worker';
 

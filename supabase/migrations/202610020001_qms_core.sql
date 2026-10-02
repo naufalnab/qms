@@ -68,6 +68,10 @@ create index followups_document_date_idx on public.document_followups(document_i
 
 create or replace function public.current_app_role() returns public.app_role language sql stable security definer set search_path=public as $$ select role from public.profiles where id=auth.uid() and is_active $$;
 create or replace function public.can_review() returns boolean language sql stable security definer set search_path=public as $$ select coalesce(public.current_app_role() in ('admin','reviewer'),false) $$;
+revoke all on function public.current_app_role() from public;
+revoke all on function public.can_review() from public;
+grant execute on function public.current_app_role() to authenticated;
+grant execute on function public.can_review() to authenticated;
 create or replace function public.valid_status_transition(old_status public.document_status,new_status public.document_status) returns boolean language sql immutable as $$
   select case old_status when 'draft' then new_status='submitted' when 'submitted' then new_status='under_review' when 'under_review' then new_status in ('need_revision','approved','rejected') when 'need_revision' then new_status='resubmitted' when 'resubmitted' then new_status='under_review' when 'approved' then new_status='closed' else false end
 $$;
@@ -87,7 +91,7 @@ begin
  end if;
  if tg_op='UPDATE' and new.status is distinct from old.status then
   if not public.valid_status_transition(old.status,new.status) then raise exception 'Invalid QMS status transition: % -> %',old.status,new.status; end if;
-  if old.status in ('under_review','resubmitted') and new.status in ('need_revision','approved','rejected') and not public.can_review() then raise exception 'Reviewer permission required'; end if;
+  if new.status in ('under_review','need_revision','approved','rejected') and not public.can_review() then raise exception 'Reviewer permission required'; end if;
   if new.status in ('need_revision','rejected') and length(trim(coalesce(current_setting('app.review_note',true),'')))=0 then raise exception 'Review note is required'; end if;
   if new.status='approved' then new.approval_date=coalesce(new.approval_date,(now() at time zone 'Asia/Jakarta')::date); end if;
   if new.status='closed' then new.closed_at=coalesce(new.closed_at,now()); end if;
@@ -122,6 +126,12 @@ create or replace function public.log_document_change() returns trigger language
  end if; return new;
 end $$;
 create trigger document_history_trigger after insert or update on public.document_submissions for each row execute function public.log_document_change();
+create or replace function public.log_followup_change() returns trigger language plpgsql security definer set search_path=public as $$ begin
+ insert into public.document_history(document_id,event_type,changed_by,notes,metadata)
+ values(new.document_id,'follow_up_added',auth.uid(),new.follow_up_result,jsonb_build_object('follow_up_date',new.follow_up_date,'next_action',new.next_action));
+ return new;
+end $$;
+create trigger followup_history_trigger after insert on public.document_followups for each row execute function public.log_followup_change();
 create or replace function public.prevent_history_mutation() returns trigger language plpgsql as $$ begin raise exception 'Document history is immutable'; end $$;
 create trigger history_immutable before update or delete on public.document_history for each row execute function public.prevent_history_mutation();
 
@@ -139,14 +149,13 @@ create policy reviewers_admin_manage on public.reviewers for all to authenticate
 create policy submissions_read_authenticated on public.document_submissions for select to authenticated using(public.current_app_role()='admin' or public.current_app_role()='viewer' or created_by=auth.uid() or reviewer_id=auth.uid());
 create policy submissions_create_submitter on public.document_submissions for insert to authenticated with check(public.current_app_role() in ('admin','submitter') and created_by=auth.uid());
 create policy submissions_update_roles on public.document_submissions for update to authenticated using(public.current_app_role()='admin' or (public.current_app_role()='submitter' and created_by=auth.uid()) or (public.current_app_role()='reviewer' and reviewer_id=auth.uid())) with check(public.current_app_role() in ('admin','submitter','reviewer'));
-create policy submissions_delete_admin on public.document_submissions for delete to authenticated using(public.current_app_role()='admin');
-create policy history_read_authenticated on public.document_history for select to authenticated using(true);
-create policy history_insert_actor on public.document_history for insert to authenticated with check(changed_by=auth.uid() and public.current_app_role() in ('admin','submitter','reviewer'));
-create policy followups_read_authenticated on public.document_followups for select to authenticated using(true);
-create policy followups_create_roles on public.document_followups for insert to authenticated with check(created_by=auth.uid() and public.current_app_role() in ('admin','submitter','reviewer'));
-create policy followups_update_creator_admin on public.document_followups for update to authenticated using(created_by=auth.uid() or public.current_app_role()='admin');
-create policy attachments_read_authenticated on public.document_attachments for select to authenticated using(true);
-create policy attachments_add_roles on public.document_attachments for insert to authenticated with check(uploaded_by=auth.uid() and public.current_app_role() in ('admin','submitter','reviewer'));
+create policy history_read_accessible on public.document_history for select to authenticated using(exists(select 1 from public.document_submissions d where d.id=document_id));
+revoke insert,update,delete on public.document_history from authenticated;
+create policy followups_read_accessible on public.document_followups for select to authenticated using(exists(select 1 from public.document_submissions d where d.id=document_id));
+create policy followups_create_roles on public.document_followups for insert to authenticated with check(created_by=auth.uid() and public.current_app_role() in ('admin','submitter','reviewer') and exists(select 1 from public.document_submissions d where d.id=document_id and (public.current_app_role()='admin' or d.created_by=auth.uid() or d.reviewer_id=auth.uid())));
+create policy followups_update_creator_admin on public.document_followups for update to authenticated using((created_by=auth.uid() or public.current_app_role()='admin') and exists(select 1 from public.document_submissions d where d.id=document_id and (public.current_app_role()='admin' or d.created_by=auth.uid() or d.reviewer_id=auth.uid())));
+create policy attachments_read_accessible on public.document_attachments for select to authenticated using(exists(select 1 from public.document_submissions d where d.id=document_id));
+create policy attachments_add_roles on public.document_attachments for insert to authenticated with check(uploaded_by=auth.uid() and public.current_app_role() in ('admin','submitter','reviewer') and exists(select 1 from public.document_submissions d where d.id=document_id and (public.current_app_role()='admin' or d.created_by=auth.uid() or d.reviewer_id=auth.uid())));
 create policy attachments_remove_admin on public.document_attachments for delete to authenticated using(public.current_app_role()='admin');
 
 insert into public.departments(name) values ('QMS'),('QC'),('Production'),('Warehouse'),('Purchasing NRM'),('HRM'),('Maintenance'),('Finance'),('QA'),('PPIC'),('RND'),('Purchasing RM'),('EXIM'),('Marketing'),('Spec'),('General Affair'),('House Keeping'),('Cold Storage'),('LAB'),('WHS'),('HSE'),('ENG') on conflict(name) do nothing;

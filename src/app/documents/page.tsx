@@ -4,10 +4,12 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { demoSubmissions, departments, documentTypes, formatDate, getActionRequired, getSlaStatus, priorityLabels, statusLabels, statusOrder, currentMonthKey } from '@/lib/qms';
+import { formatDate, getActionRequired, getSlaStatus, priorityLabels, statusLabels, statusOrder, currentMonthKey } from '@/lib/qms';
 import { PageHeading, PriorityBadge, SlaBadge, StatusBadge } from '@/components/ui';
+import { useQmsData } from '@/components/qms-data-provider';
 
 function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string; initialSla: string }) {
+  const { submissions, departments, documentTypes, reviewers, loading, error } = useQmsData();
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState(initialStatus);
   const [department, setDepartment] = useState('');
@@ -20,7 +22,7 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
   const [period, setPeriod] = useState('');
   const [sort, setSort] = useState('due_asc');
 
-  const rows = useMemo(() => demoSubmissions
+  const rows = useMemo(() => submissions
     .filter(doc => `${doc.number} ${doc.docNo} ${doc.title} ${doc.pic} ${doc.reviewer}`.toLowerCase().includes(query.toLowerCase())
       && (!status || doc.status === status)
       && (!department || doc.department === department)
@@ -35,7 +37,7 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
       : sort === 'oldest' ? a.requested.localeCompare(b.requested)
         : sort === 'priority' ? ['critical','high','medium','low'].indexOf(a.priority)-['critical','high','medium','low'].indexOf(b.priority)
           : sort === 'aging' ? new Date(a.requested).getTime()-new Date(b.requested).getTime() : a.due.localeCompare(b.due)),
-    [query, status, department, type, sla, condition, priority, reviewer, pic, period, sort]);
+    [submissions, query, status, department, type, sla, condition, priority, reviewer, pic, period, sort]);
 
   const exportXlsx = () => {
     const records = rows.map((doc, index) => ({
@@ -68,11 +70,12 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
         <select aria-label="Filter periode" value={period} onChange={event => setPeriod(event.target.value)}><option value="">Semua Periode</option><option value={currentMonthKey()}>Bulan Ini</option></select>
         <select aria-label="Filter kondisi dokumen" value={condition} onChange={event => setCondition(event.target.value)}><option value="">Baru / Lama</option><option value="new">Baru</option><option value="existing">Lama</option></select>
         <select aria-label="Filter prioritas" value={priority} onChange={event => setPriority(event.target.value)}><option value="">Semua Prioritas</option><option value="low">Rendah</option><option value="medium">Sedang</option><option value="high">Tinggi</option><option value="critical">Kritis</option></select>
-        <select aria-label="Filter reviewer" value={reviewer} onChange={event => setReviewer(event.target.value)}><option value="">Semua Reviewer</option>{Array.from(new Set(demoSubmissions.map(item => item.reviewer))).map(name => <option key={name}>{name}</option>)}</select>
-        <select aria-label="Filter PIC" value={pic} onChange={event => setPic(event.target.value)}><option value="">Semua PIC</option>{Array.from(new Set(demoSubmissions.map(item => item.pic))).map(name => <option key={name}>{name}</option>)}</select>
+        <select aria-label="Filter reviewer" value={reviewer} onChange={event => setReviewer(event.target.value)}><option value="">Semua Reviewer</option>{reviewers.map(name => <option key={name}>{name}</option>)}</select>
+        <select aria-label="Filter PIC" value={pic} onChange={event => setPic(event.target.value)}><option value="">Semua PIC</option>{Array.from(new Set(submissions.map(item => item.pic))).map(name => <option key={name}>{name}</option>)}</select>
         <select aria-label="Urutkan dokumen" value={sort} onChange={event => setSort(event.target.value)}><option value="due_asc">Deadline terdekat</option><option value="newest">Terbaru</option><option value="oldest">Terlama</option><option value="priority">Prioritas</option><option value="aging">Aging</option></select>
       </div>
-      <div className="results-caption">Menampilkan <b>{rows.length}</b> dari {demoSubmissions.length} pengajuan</div>
+      {error && <div className="data-error inline-data-error" role="alert">{error}</div>}{loading && <div className="data-loading">Memuat data pengajuan…</div>}
+      <div className="results-caption">Menampilkan <b>{rows.length}</b> dari {submissions.length} pengajuan</div>
       <div className="table-wrap"><table className="documents-table"><thead><tr><th>DOKUMEN</th><th>DEPARTEMEN / JENIS</th><th>PIC / REVIEWER</th><th>PRIORITAS</th><th>STATUS</th><th>DEADLINE / SLA</th><th /></tr></thead><tbody>
         {rows.map(doc => <tr key={doc.id}><td><Link href={`/documents/${doc.id}`} className="doc-cell"><span className="table-file-icon">▤</span><span><b>{doc.docNo}</b><small>{doc.title}</small></span></Link></td><td><b>{doc.department}</b><small>{doc.type} · Rev {doc.revision}</small></td><td><b>{doc.pic}</b><small>Review: {doc.reviewer}</small></td><td><PriorityBadge priority={doc.priority} /></td><td><StatusBadge status={doc.status} /></td><td><b>{doc.due}</b><small><SlaBadge doc={doc} /></small></td><td><Link href={`/documents/${doc.id}`} className="row-more">···</Link></td></tr>)}
       </tbody></table></div>

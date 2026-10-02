@@ -14,16 +14,17 @@ Open http://localhost:3000. The UI runs in demo mode when Supabase variables are
 ## Supabase setup
 
 1. Create a Supabase project.
-2. Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+2. Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy anon key).
 3. Apply `supabase/migrations/202610020001_qms_core.sql` using the Supabase SQL editor or Supabase CLI.
-4. Create users in Supabase Auth, then add matching `profiles` rows with a role (`admin`, `submitter`, `reviewer`, or `viewer`). Reviewer accounts also need a `reviewers` row.
+4. Create the first Admin user in Supabase Auth, then add the matching `profiles` row with `role = 'admin'`. Create later users in Supabase Auth and add profile rows with roles (`admin`, `submitter`, `reviewer`, or `viewer`). Reviewer accounts also need a `reviewers` row.
 5. Configure a private Storage bucket named `qms-attachments` and Storage policies before enabling attachment uploads.
 
-Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code. It is included in `.env.example` only for future trusted server operations.
+The application uses cookie-based Supabase Auth, a protected Next.js 16 Proxy, and RLS. Public signup is not exposed.
 
 ## Included
 
 - Bahasa Indonesia responsive dashboard, submission entry, document list/detail, workflow actions, follow-ups, history, analytics, and master data.
+- Email/password Supabase Auth with persistent cookie sessions, login, and sign out.
 - Demo records covering the supported workflow states.
 - Centralized calendar-day SLA/date/status/action helpers.
 - XLSX export of the currently filtered document list.
@@ -32,10 +33,11 @@ Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code. It is included in `.en
 
 ## Current limitations
 
-- Screens currently use the in-memory demo adapter. Supabase Auth client helpers and production schema are ready, but page data reads/writes are not yet wired to Supabase; production persistence, server-side authorization, and login UI must be connected before real use.
+- With Supabase configured, the dashboard, document list/detail, action center, history, analytics, and master data read from PostgreSQL. New submissions, workflow transitions, follow-ups, department/type creation, and SLA changes persist through authenticated Supabase calls guarded by RLS.
+- Editing existing submission metadata, adding reviewer profiles through the UI, and attachment upload/download are not implemented yet. Reviewer accounts and profiles must be provisioned in Supabase.
 - The seeded UI dataset is generated in code for exploration; it is not persistent and must not be interpreted as workbook data.
 - Attachment table exists; private bucket setup and upload UI remain to be done.
-- Demo role is Admin. Production roles must be enforced by the database and trusted server actions, not by the demo UI.
+- Demo mode is an in-memory Admin preview. It resets on refresh and is not suitable for operational data.
 
 ## Checks
 
