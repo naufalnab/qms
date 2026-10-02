@@ -1,69 +1,18 @@
-import Image from "next/image";
+'use client';
+import Link from 'next/link';
+import { useMemo, useState } from 'react';
+import { demoSubmissions, currentMonthKey, departments, documentTypes, formatDate, getActionRequired, getSlaStatus, statusLabels, statusOrder, todayLabel, type Status } from '@/lib/qms';
+import { EmptyState, PageHeading, SlaBadge, StatusBadge } from '@/components/ui';
 
-export default function Home() {
-  return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
-  );
+export default function Dashboard(){const [period,setPeriod]=useState(currentMonthKey()),[department,setDepartment]=useState(''),[type,setType]=useState(''),[status,setStatus]=useState(''),[pic,setPic]=useState('');const data=useMemo(()=>demoSubmissions,[]);
+ const filtered=useMemo(()=>data.filter(d=>(period==='all'||d.requested.startsWith(period))&&(!department||d.department===department)&&(!type||d.type===type)&&(!status||d.status===status)&&(!pic||d.pic===pic)),[data,period,department,type,status,pic]);
+ const count=(s:Status)=>filtered.filter(d=>d.status===s).length; const overdue=filtered.filter(d=>getSlaStatus(d)==='overdue'&&d.status!=='closed'); const dueSoon=filtered.filter(d=>getSlaStatus(d)==='due_soon'&&d.status!=='closed'); const attention=filtered.filter(d=>d.status!=='rejected'&&(d.status==='need_revision'||d.status==='approved'||getSlaStatus(d)==='overdue'||getSlaStatus(d)==='due_soon')).sort((a,b)=>{const rank=(x:typeof a)=>x.status==='need_revision'?1:x.status==='approved'?4:getSlaStatus(x)==='overdue'?0:getSlaStatus(x)==='due_soon'?3:2;return rank(a)-rank(b)}).slice(0,5);
+ const kpis=[['Total Pengajuan',filtered.length,'▤','neutral','/documents'],['Dalam Review',count('under_review')+count('submitted'),'◷','blue','/documents?status=under_review'],['Perlu Revisi',count('need_revision'),'↻','amber','/documents?status=need_revision'],['Terlambat',overdue.length,'!','red','/documents?sla=overdue']];
+ return <><PageHeading eyebrow={todayLabel().toLocaleUpperCase('id-ID')} title="Selamat pagi, Rosa" description="Berikut ringkasan pengajuan dokumen Anda hari ini." action={<Link className="button primary" href="/new"><span>＋</span> Pengajuan Baru</Link>}/>
+ <section className="filter-panel"><div className="filter-caption"><span className="filter-glyph">⌁</span><div><b>Filter ringkasan</b><small>Semua informasi menyesuaikan filter aktif</small></div></div><div className="filter-fields"><label>Periode<select value={period} onChange={e=>setPeriod(e.target.value)}><option value={currentMonthKey()}>Oktober 2026</option><option value="all">Semua Periode</option>{Array.from({length:6},(_,i)=>{const d=new Date();d.setMonth(d.getMonth()-i-1);const v=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;return <option key={v} value={v}>{new Intl.DateTimeFormat('id-ID',{month:'long',year:'numeric'}).format(d)}</option>})}</select></label><label>Departemen<select value={department} onChange={e=>setDepartment(e.target.value)}><option value="">Semua Departemen</option>{departments.map(d=><option key={d.id}>{d.name}</option>)}</select></label><label>Jenis Dokumen<select value={type} onChange={e=>setType(e.target.value)}><option value="">Semua Jenis</option>{documentTypes.map(d=><option key={d.id}>{d.name}</option>)}</select></label><label>Status<select value={status} onChange={e=>setStatus(e.target.value)}><option value="">Semua Status</option>{statusOrder.map(s=><option key={s} value={s}>{statusLabels[s]}</option>)}</select></label><label className="pic-filter">PIC / Requestor<select value={pic} onChange={e=>setPic(e.target.value)}><option value="">Semua PIC</option>{Array.from(new Set(data.map(d=>d.pic))).map(n=><option key={n}>{n}</option>)}</select></label></div></section>
+ <section className="kpi-grid">{kpis.map(([label,value,icon,color,href])=><Link className="kpi-card" href={String(href)} key={String(label)}><div className="kpi-top"><span>{label}</span><i className={`kpi-icon ${color}`}>{icon}</i></div><strong>{value}</strong><small>Dari filter aktif <span>↗</span></small></Link>)}</section>
+ <div className="dashboard-grid"><section className="panel attention-panel"><div className="section-heading"><div><div className="eyebrow">PRIORITAS HARI INI</div><h2>Butuh Tindakan <span className="count-pill">{attention.length}</span></h2><p>Dokumen yang membutuhkan perhatian Anda</p></div><Link className="text-link" href="/actions">Lihat semua <span>→</span></Link></div>{attention.length? <div className="attention-list">{attention.map(doc=><Link href={`/documents/${doc.id}`} className="attention-row" key={doc.id}><div className={`attention-mark ${getSlaStatus(doc)}`}><span>{doc.status==='need_revision'?'↻':doc.status==='approved'?'✓':'!'}</span></div><div className="attention-copy"><div className="card-topline"><span className="doc-number">{doc.docNo}</span><SlaBadge doc={doc}/></div><b>{doc.title}</b><small>{doc.department} <span>·</span> PIC: {doc.pic}</small></div><div className="attention-action"><small>{formatDate(doc.due)}</small><span>{getActionRequired(doc)}　›</span></div></Link>)}</div>:<EmptyState title="Tidak ada dokumen yang perlu ditindaklanjuti" detail="Semua pengajuan pada filter ini berjalan sesuai jadwal."/>}</section>
+ <section className="panel status-panel"><div className="section-heading"><div><div className="eyebrow">GAMBARAN UMUM</div><h2>Status Pengajuan</h2><p>Distribusi status pada periode aktif</p></div><span className="tiny-calendar">◷</span></div><div className="status-list">{statusOrder.map((s,i)=>{const n=count(s);const pct=filtered.length?Math.round(n/filtered.length*100):0;return <div className="status-line" key={s}><span className="status-dot" style={{'--dot-color':['#a6adb9','#5590dd','#8a73df','#eb9c43','#40a88b','#359b76','#e26768','#95a0ad'][i]} as React.CSSProperties}/><span className="status-line-label">{statusLabels[s]}</span><b>{n}</b><div className="progress-track"><i style={{width:`${pct}%`,'--bar-color':['#a6adb9','#5590dd','#8a73df','#eb9c43','#40a88b','#359b76','#e26768','#95a0ad'][i]} as React.CSSProperties}/></div></div>})}</div></section></div>
+ <div className="lower-grid"><section className="panel sla-panel"><div className="section-heading"><div><div className="eyebrow">PANTAU TENGGAT</div><h2>Monitoring SLA</h2></div><Link className="text-link" href="/documents">Detail →</Link></div><div className="sla-summary"><div className="sla-stat"><span className="sla-orb green">✓</span><div><strong>{filtered.filter(d=>getSlaStatus(d)==='on_time').length}</strong><small>Tepat Waktu</small></div></div><div className="sla-stat"><span className="sla-orb orange">⌛</span><div><strong>{dueSoon.length}</strong><small>Segera Jatuh Tempo</small></div></div><div className="sla-stat"><span className="sla-orb red">!</span><div><strong>{overdue.length}</strong><small>Terlambat</small></div></div><div className="sla-stat"><span className="sla-orb gray">✓</span><div><strong>{count('closed')}</strong><small>Selesai</small></div></div></div></section><section className="panel recent-panel"><div className="section-heading"><div><div className="eyebrow">AKTIVITAS TERBARU</div><h2>Dokumen Terbaru</h2></div><Link className="text-link" href="/documents">Semua →</Link></div><div className="recent-list">{[...filtered].sort((a,b)=>b.requested.localeCompare(a.requested)).slice(0,4).map(d=><Link href={`/documents/${d.id}`} className="recent-row" key={d.id}><span className="file-icon">▤</span><span className="recent-name"><b>{d.docNo}</b><small>{d.title}</small></span><StatusBadge status={d.status}/></Link>)}</div></section></div>
+ </>
 }

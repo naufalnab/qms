@@ -1,36 +1,46 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# QMS Document Monitoring
 
-## Getting Started
+Mobile-first QMS document monitoring PWA built with Next.js App Router, TypeScript, Tailwind CSS, and Supabase-compatible PostgreSQL.
 
-First, run the development server:
+## Run locally
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
+pnpm install
 pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:3000. The UI runs in demo mode when Supabase variables are absent. Demo records and edits live in memory and reset when the page is refreshed; do not use demo mode for real records.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Supabase setup
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Create a Supabase project.
+2. Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_ANON_KEY`.
+3. Apply `supabase/migrations/202610020001_qms_core.sql` using the Supabase SQL editor or Supabase CLI.
+4. Create users in Supabase Auth, then add matching `profiles` rows with a role (`admin`, `submitter`, `reviewer`, or `viewer`). Reviewer accounts also need a `reviewers` row.
+5. Configure a private Storage bucket named `qms-attachments` and Storage policies before enabling attachment uploads.
 
-## Learn More
+Never expose `SUPABASE_SERVICE_ROLE_KEY` in browser code. It is included in `.env.example` only for future trusted server operations.
 
-To learn more about Next.js, take a look at the following resources:
+## Included
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- Bahasa Indonesia responsive dashboard, submission entry, document list/detail, workflow actions, follow-ups, history, analytics, and master data.
+- Demo records covering the supported workflow states.
+- Centralized calendar-day SLA/date/status/action helpers.
+- XLSX export of the currently filtered document list.
+- PWA manifest, icons, service worker, and iOS safe-area navigation.
+- Supabase schema, seed master data, role model, RLS policies, immutable history trigger, status-transition guard, and submission number generator.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Current limitations
 
-## Deploy on Vercel
+- Screens currently use the in-memory demo adapter. Supabase Auth client helpers and production schema are ready, but page data reads/writes are not yet wired to Supabase; production persistence, server-side authorization, and login UI must be connected before real use.
+- The seeded UI dataset is generated in code for exploration; it is not persistent and must not be interpreted as workbook data.
+- Attachment table exists; private bucket setup and upload UI remain to be done.
+- Demo role is Admin. Production roles must be enforced by the database and trusted server actions, not by the demo UI.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Checks
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```bash
+pnpm lint
+pnpm typecheck
+pnpm build
+```
