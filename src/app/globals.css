@@ -154,3 +154,12 @@
   .document-card h3,.mobile-document-row h3{font-size:14px}
   .card-detail,.due-label,.mobile-document-row>small{font-size:11px}
 }
+
+.document-actions{white-space:nowrap}
+.document-actions .row-more{display:inline-flex;align-items:center;justify-content:center;min-width:30px;min-height:30px}
+.delete-document-button{border:1px solid #f0d8d9;border-radius:6px;padding:6px 9px;background:#fff;color:#b84d54;font-size:11px;font-weight:600}
+.delete-document-button:hover{border-color:#e4b6b9;background:#fff8f8}
+.delete-document-button:disabled{opacity:.55;cursor:wait}
+.mobile-document-row>a{display:block;color:inherit;text-decoration:none}
+.mobile-document-row>.delete-document-button{margin-top:10px}
+@media(min-width:1201px){.delete-document-button{font-size:12px;padding:8px 11px}}

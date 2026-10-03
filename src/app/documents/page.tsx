@@ -2,14 +2,18 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useMemo, useState } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
 import { formatDate, getActionRequired, getSlaStatus, priorityLabels, statusLabels, statusOrder, currentMonthKey } from '@/lib/qms';
 import { PageHeading, PriorityBadge, SlaBadge, StatusBadge } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
+import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
 
 function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string; initialSla: string }) {
-  const { submissions, departments, documentTypes, reviewers, loading, error } = useQmsData();
+  const { submissions, departments, documentTypes, reviewers, loading, error, reload } = useQmsData();
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [deletingId, setDeletingId] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
   const [query, setQuery] = useState('');
   const [status, setStatus] = useState(initialStatus);
   const [department, setDepartment] = useState('');
@@ -21,6 +25,34 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
   const [pic, setPic] = useState('');
   const [period, setPeriod] = useState('');
   const [sort, setSort] = useState('due_asc');
+
+  useEffect(() => {
+    if (isDemoMode) return;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    let active = true;
+    void (async () => {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await client.from('profiles').select('role,is_active').eq('id', user.id).maybeSingle();
+      if (active) setIsAdmin(profile?.role === 'admin' && profile.is_active);
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const deleteDocument = async (id: string, title: string) => {
+    if (!isAdmin || isDemoMode) return;
+    if (!window.confirm(`Hapus pengajuan “${title}” dari daftar dokumen aktif? Riwayat audit tetap disimpan.`)) return;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    setDeletingId(id);
+    setActionMessage('');
+    const { error: deleteError } = await client.rpc('archive_document', { p_document_id: id });
+    if (deleteError) setActionMessage(`Dokumen gagal dihapus: ${deleteError.message}`);
+    else setActionMessage(`Pengajuan “${title}” berhasil dihapus dari daftar aktif.`);
+    setDeletingId('');
+    if (!deleteError) await reload();
+  };
 
   const rows = useMemo(() => submissions
     .filter(doc => `${doc.number} ${doc.docNo} ${doc.title} ${doc.pic} ${doc.reviewer}`.toLowerCase().includes(query.toLowerCase())
@@ -75,11 +107,12 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
         <select aria-label="Urutkan dokumen" value={sort} onChange={event => setSort(event.target.value)}><option value="due_asc">Deadline terdekat</option><option value="newest">Terbaru</option><option value="oldest">Terlama</option><option value="priority">Prioritas</option><option value="aging">Aging</option></select>
       </div>
       {error && <div className="data-error inline-data-error" role="alert">{error}</div>}{loading && <div className="data-loading">Memuat data pengajuan…</div>}
+      {actionMessage && <div className="inline-message" role="status">{actionMessage}</div>}
       <div className="results-caption">Menampilkan <b>{rows.length}</b> dari {submissions.length} pengajuan</div>
       <div className="table-wrap"><table className="documents-table"><thead><tr><th>DOKUMEN</th><th>DEPARTEMEN / JENIS</th><th>PIC / REVIEWER</th><th>PRIORITAS</th><th>STATUS</th><th>DEADLINE / SLA</th><th /></tr></thead><tbody>
-        {rows.map(doc => <tr key={doc.id}><td><Link href={`/documents/${doc.id}`} className="doc-cell"><span className="table-file-icon">▤</span><span><b>{doc.docNo}</b><small>{doc.title}</small></span></Link></td><td><b>{doc.department}</b><small>{doc.type} · Rev {doc.revision}</small></td><td><b>{doc.pic}</b><small>Review: {doc.reviewer}</small></td><td><PriorityBadge priority={doc.priority} /></td><td><StatusBadge status={doc.status} /></td><td><b>{doc.due}</b><small><SlaBadge doc={doc} /></small></td><td><Link href={`/documents/${doc.id}`} className="row-more">···</Link></td></tr>)}
+        {rows.map(doc => <tr key={doc.id}><td><Link href={`/documents/${doc.id}`} className="doc-cell"><span className="table-file-icon">▤</span><span><b>{doc.docNo}</b><small>{doc.title}</small></span></Link></td><td><b>{doc.department}</b><small>{doc.type} · Rev {doc.revision}</small></td><td><b>{doc.pic}</b><small>Review: {doc.reviewer}</small></td><td><PriorityBadge priority={doc.priority} /></td><td><StatusBadge status={doc.status} /></td><td><b>{doc.due}</b><small><SlaBadge doc={doc} /></small></td><td className="document-actions"><Link href={`/documents/${doc.id}`} className="row-more" aria-label={`Lihat ${doc.title}`}>···</Link>{isAdmin && <button className="delete-document-button" disabled={deletingId === doc.id} onClick={() => void deleteDocument(doc.id, doc.title)}>{deletingId === doc.id ? 'Menghapus…' : 'Hapus'}</button>}</td></tr>)}
       </tbody></table></div>
-      <div className="mobile-documents">{rows.map(doc => <Link href={`/documents/${doc.id}`} className="mobile-document-row" key={doc.id}><div><b>{doc.docNo}</b><SlaBadge doc={doc} /></div><h3>{doc.title}</h3><small>{doc.department} · {doc.pic}</small><div><StatusBadge status={doc.status} /><span className="due-label">Deadline {doc.due}</span></div></Link>)}</div>
+      <div className="mobile-documents">{rows.map(doc => <div className="mobile-document-row" key={doc.id}><Link href={`/documents/${doc.id}`}><div><b>{doc.docNo}</b><SlaBadge doc={doc} /></div><h3>{doc.title}</h3><small>{doc.department} · {doc.pic}</small><div><StatusBadge status={doc.status} /><span className="due-label">Deadline {doc.due}</span></div></Link>{isAdmin && <button className="delete-document-button" disabled={deletingId === doc.id} onClick={() => void deleteDocument(doc.id, doc.title)}>{deletingId === doc.id ? 'Menghapus…' : 'Hapus pengajuan'}</button>}</div>)}</div>
     </div>
   </>;
 }
