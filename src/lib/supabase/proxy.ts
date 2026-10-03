@@ -21,7 +21,8 @@ export async function updateSession(request: NextRequest) {
   const { data, error } = await supabase.auth.getClaims();
   const claims = data?.claims;
   const isLogin = request.nextUrl.pathname === '/login';
-  if ((error || !claims) && !isLogin) {
+  const isAuthCallback = request.nextUrl.pathname === '/auth/callback';
+  if ((error || !claims) && !isLogin && !isAuthCallback) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     loginUrl.searchParams.set('next', request.nextUrl.pathname);

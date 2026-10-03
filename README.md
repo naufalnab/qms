@@ -14,9 +14,9 @@ Open http://localhost:3000. The UI runs in demo mode when Supabase variables are
 ## Supabase setup
 
 1. Create a Supabase project.
-2. Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy anon key).
+2. Copy `.env.example` to `.env.local` and set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy anon key), `NEXT_PUBLIC_SITE_URL`, and the server-only `SUPABASE_SECRET_KEY` (or legacy service-role key) for admin user management.
 3. Apply `supabase/migrations/202610020001_qms_core.sql` using the Supabase SQL editor or Supabase CLI.
-4. Create the first Admin user in Supabase Auth, then add the matching `profiles` row with `role = 'admin'`. Create later users in Supabase Auth and add profile rows with roles (`admin`, `submitter`, `reviewer`, or `viewer`). Reviewer accounts also need a `reviewers` row.
+4. Create the first Admin user in Supabase Auth, then add the matching `profiles` row with `role = 'admin'`. Admins can invite and manage later users from Master Data → Pengguna. Set the invite callback (`/auth/callback`) as an allowed redirect URL in Supabase Auth. Reviewer accounts also need a `reviewers` row.
 5. Configure a private Storage bucket named `qms-attachments` and Storage policies before enabling attachment uploads.
 
 The application uses cookie-based Supabase Auth, a protected Next.js 16 Proxy, and RLS. Public signup is not exposed.
@@ -34,7 +34,7 @@ The application uses cookie-based Supabase Auth, a protected Next.js 16 Proxy, a
 ## Current limitations
 
 - With Supabase configured, the dashboard, document list/detail, action center, history, analytics, and master data read from PostgreSQL. New submissions, workflow transitions, follow-ups, department/type creation, and SLA changes persist through authenticated Supabase calls guarded by RLS.
-- Editing existing submission metadata, adding reviewer profiles through the UI, and attachment upload/download are not implemented yet. Reviewer accounts and profiles must be provisioned in Supabase.
+- Reviewer accounts still need a `reviewers` row before they can be selected for document review. Attachment upload/download are not implemented yet.
 - The seeded UI dataset is generated in code for exploration; it is not persistent and must not be interpreted as workbook data.
 - Attachment table exists; private bucket setup and upload UI remain to be done.
 - Demo mode is an in-memory Admin preview. It resets on refresh and is not suitable for operational data.

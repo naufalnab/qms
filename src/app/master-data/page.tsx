@@ -4,10 +4,11 @@ import { useEffect, useState } from 'react';
 import { PageHeading } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
+import { inviteManagedUser, listManagedUsers, updateManagedUser } from '@/app/master-data/user-actions';
 
 type Tab = 'Departemen' | 'Jenis Dokumen' | 'Reviewer' | 'Pengguna';
 type MasterItem = { id: string; name: string; detail: string; sla: number | null };
-type UserItem = { id: string; full_name: string; role: string; is_active: boolean };
+type UserItem = { id: string; email: string; full_name: string; role: string; is_active: boolean; invited: boolean };
 const roleLabels: Record<string, string> = { admin: 'Admin', submitter: 'QMS / Submitter', reviewer: 'QMSR / Reviewer', viewer: 'Viewer' };
 
 export default function MasterData() {
@@ -23,6 +24,12 @@ export default function MasterData() {
   const [isAdmin, setIsAdmin] = useState(false);
   const [users, setUsers] = useState<UserItem[]>([]);
   const [usersLoading, setUsersLoading] = useState(false);
+  const [newUserName, setNewUserName] = useState('');
+  const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserRole, setNewUserRole] = useState('submitter');
+  const [editingUserId, setEditingUserId] = useState('');
+  const [editingUserName, setEditingUserName] = useState('');
+  const [editingUserRole, setEditingUserRole] = useState('submitter');
   const { departments, documentTypes, reviewers, availableReviewers, loading, error, reload } = useQmsData();
   useEffect(() => {
     if (isDemoMode) return;
@@ -38,19 +45,17 @@ export default function MasterData() {
     return () => { active = false; };
   }, []);
   useEffect(() => {
-    if (tab !== 'Pengguna' || !isAdmin || isDemoMode) return;
-    const client = getSupabaseBrowserClient();
-    if (!client) return;
+    if (tab !== 'Pengguna' || !isAdmin) return;
     let active = true;
-    void client.from('profiles').select('id,full_name,role,is_active').order('full_name').then((result: { data: UserItem[] | null; error: { message: string } | null }) => {
+    void listManagedUsers().then(result => {
       if (!active) return;
-      if (result.error) setMessage(result.error.message);
-      else setUsers(result.data ?? []);
+      if (result.error) { setMessage(result.error); setUsers([]); }
+      else setUsers(result.users ?? []);
       setUsersLoading(false);
     });
     return () => { active = false; };
   }, [tab, isAdmin]);
-  const items: MasterItem[] = tab === 'Departemen'
+  const items: MasterItem[] = tab === 'Pengguna' ? [] : tab === 'Departemen'
     ? departments.map(item => ({ id: item.id, name: item.name, detail: 'Unit kerja', sla: null }))
     : tab === 'Jenis Dokumen'
       ? documentTypes.map(item => ({ id: item.id, name: item.name, detail: 'SLA default', sla: item.sla }))
@@ -110,13 +115,55 @@ export default function MasterData() {
     if (!updateError) { if (editingId === id) cancelEdit(); await reload(); }
   };
 
-  const changeTab = (item: Tab) => { if (item === 'Pengguna' && !users.length) setUsersLoading(true); setTab(item); cancelEdit(); setMessage(''); setName(''); setReviewerId(''); };
+  const refreshUsers = async () => {
+    setUsersLoading(true);
+    const result = await listManagedUsers();
+    if (result.error) setMessage(result.error);
+    else setUsers(result.users ?? []);
+    setUsersLoading(false);
+  };
+
+  const inviteUser = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault(); setBusy(true); setMessage('');
+    const result = await inviteManagedUser(newUserEmail, newUserName, newUserRole);
+    if (result.error) setMessage(result.error);
+    else {
+      setMessage(result.message || 'Undangan berhasil dikirim.');
+      setNewUserEmail(''); setNewUserName(''); setNewUserRole('submitter');
+      await refreshUsers();
+    }
+    setBusy(false);
+  };
+
+  const saveUser = async (event: React.FormEvent<HTMLFormElement>, user: UserItem) => {
+    event.preventDefault(); setBusy(true); setMessage('');
+    const result = await updateManagedUser(user.id, editingUserName, editingUserRole, user.is_active);
+    if (result.error) setMessage(result.error);
+    else { setMessage(result.message || 'Pengguna berhasil diperbarui.'); setEditingUserId(''); await refreshUsers(); }
+    setBusy(false);
+  };
+
+  const toggleUser = async (user: UserItem) => {
+    setBusy(true); setMessage('');
+    const result = await updateManagedUser(user.id, user.full_name, user.role, !user.is_active);
+    if (result.error) setMessage(result.error);
+    else { setMessage(result.message || 'Status pengguna diperbarui.'); await refreshUsers(); }
+    setBusy(false);
+  };
+
+  const changeTab = (item: Tab) => { if (item === 'Pengguna' && !users.length) setUsersLoading(true); setTab(item); cancelEdit(); setEditingUserId(''); setMessage(''); setName(''); setReviewerId(''); };
 
   return <>
     <PageHeading eyebrow="PENGATURAN WORKSPACE" title="Master Data" description="Kelola data workspace dan pengguna." />
     <section className="panel master-panel">
       <div className="master-tabs">{(['Departemen', 'Jenis Dokumen', 'Reviewer', ...(isAdmin ? ['Pengguna' as const] : [])] as Tab[]).map(item => <button onClick={() => changeTab(item)} className={tab === item ? 'current' : ''} key={item}>{item}</button>)}</div>
-      <div className="master-toolbar"><div><b>{tab}</b><small>{items.length} data aktif</small></div>
+      <div className="master-toolbar"><div><b>{tab}</b><small>{tab === 'Pengguna' ? `${users.length} pengguna` : `${items.length} data aktif`}</small></div>
+        {tab === 'Pengguna' && <form className="master-users-invite" onSubmit={inviteUser}>
+          <input required type="text" value={newUserName} onChange={event => setNewUserName(event.target.value)} placeholder="Nama lengkap" aria-label="Nama pengguna baru" />
+          <input required type="email" value={newUserEmail} onChange={event => setNewUserEmail(event.target.value)} placeholder="Email undangan" aria-label="Email pengguna baru" />
+          <select value={newUserRole} onChange={event => setNewUserRole(event.target.value)} aria-label="Role pengguna baru">{Object.entries(roleLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select>
+          <button className="button primary" disabled={busy || isDemoMode}>Undang Pengguna</button>
+        </form>}
         {tab !== 'Pengguna' && <form onSubmit={save}>
           {editingId ? <>
             <input required value={editName} onChange={event => setEditName(event.target.value)} aria-label={`Nama ${tab}`} />
@@ -140,12 +187,23 @@ export default function MasterData() {
       {message && <div className="inline-message" role="status">{message}</div>}
       {error && <div className="data-error" role="alert">{error}</div>}
       {!loading && tab === 'Pengguna' && usersLoading && <div className="data-loading">Memuat pengguna...</div>}
+      {tab === 'Pengguna' && !usersLoading && users.map(user => <div className="master-row managed-user-row" key={user.id}>
+        <span className="master-symbol">♙</span>
+        {editingUserId === user.id ? <form className="managed-user-edit" onSubmit={event => void saveUser(event, user)}>
+          <input required value={editingUserName} onChange={event => setEditingUserName(event.target.value)} aria-label={`Nama ${user.full_name}`} />
+          <select value={editingUserRole} onChange={event => setEditingUserRole(event.target.value)} aria-label={`Role ${user.full_name}`}>{Object.entries(roleLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select>
+          <button className="row-more" disabled={busy}>Simpan</button><button type="button" className="row-more" disabled={busy} onClick={() => setEditingUserId('')}>Batal</button>
+        </form> : <><div><b>{user.full_name}</b><small>{user.email}{user.invited ? ' · Undangan belum diterima' : ''}</small></div><span className={`managed-user-role ${user.is_active ? '' : 'inactive'}`}>{roleLabels[user.role] || user.role}{user.is_active ? '' : ' · Nonaktif'}</span>
+          <button className="row-more" disabled={busy} onClick={() => { setEditingUserId(user.id); setEditingUserName(user.full_name); setEditingUserRole(user.role); setMessage(''); }}>Edit</button>
+          <button className={`row-more ${user.is_active ? 'master-delete' : ''}`} disabled={busy} onClick={() => void toggleUser(user)}>{user.is_active ? 'Nonaktifkan' : 'Aktifkan'}</button></>}
+      </div>)}
+      {tab === 'Pengguna' && !usersLoading && !users.length && <div className="empty-state">Belum ada profil pengguna.</div>}
       {loading ? <div className="data-loading">Memuat master data…</div> : items.length ? items.map(item => <div className="master-row" key={item.id}>
         <span className="master-symbol">{tab === 'Departemen' ? '▦' : tab === 'Jenis Dokumen' ? '▤' : '♙'}</span>
         <div><b>{item.name}</b><small>{item.detail}</small></div>
         {item.sla !== null && <span className="master-sla-value">{item.sla} hari</span>}
         {tab !== 'Pengguna' && <><button className="row-more" disabled={busy} onClick={() => startEdit(item)} aria-label={`Edit ${item.name}`}>Edit</button><button className="row-more master-delete" disabled={busy} onClick={() => void remove(item.id)} aria-label={`Hapus ${item.name}`}>Hapus</button></>}
-      </div>) : <div className="empty-state">{tab === 'Reviewer' && availableReviewers.length === 0 ? 'Belum ada akun reviewer yang tersedia.' : 'Belum ada data aktif.'}</div>}
+      </div>) : <div className="empty-state">{tab === 'Reviewer' && availableReviewers.length === 0 ? 'Belum ada akun reviewer yang tersedia.' : tab === 'Pengguna' ? null : 'Belum ada data aktif.'}</div>}
       {tab !== 'Pengguna' && <p className="muted-copy">Hapus akan menonaktifkan data agar tetap aman untuk riwayat dokumen yang sudah ada.</p>}
     </section>
   </>;

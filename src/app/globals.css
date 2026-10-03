@@ -22,6 +22,18 @@
 .metadata-edit-form .metadata-edit-actions{grid-column:1/-1;justify-content:flex-end}
 @media(min-width:1201px){.metadata-edit-form{gap:16px 22px}.metadata-edit-field{font-size:12px}.metadata-edit-field input,.metadata-edit-field select,.metadata-edit-field textarea{font-size:14px}.metadata-edit-field input,.metadata-edit-field select{height:46px}.metadata-edit-sla{padding:14px 16px;font-size:12px}}
 @media(max-width:760px){.detail-edit-actions{gap:6px}.metadata-edit-form{grid-template-columns:1fr;gap:12px}.metadata-edit-wide,.metadata-edit-sla,.metadata-edit-form>.inline-message,.metadata-edit-form .metadata-edit-actions{grid-column:auto}.metadata-edit-form .metadata-edit-actions{display:flex}.metadata-edit-field{font-size:10px}.metadata-edit-field input,.metadata-edit-field select,.metadata-edit-field textarea{font-size:13px}}
+.master-toolbar .master-users-invite{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.master-toolbar .master-users-invite input,.master-toolbar .master-users-invite select{height:38px;min-width:150px;padding:0 10px;border:1px solid #e5e8ee;border-radius:7px;background:#fff;color:#384458;font-size:12px}
+.managed-user-row>div{min-width:0}
+.managed-user-row>div b,.managed-user-row>div small{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.managed-user-row>div b{font-size:12px}
+.managed-user-row>div small{font-size:10px;color:#929baa;margin-top:3px}
+.managed-user-role{color:#778296;font-size:11px;white-space:nowrap}
+.managed-user-role.inactive{color:#b84d54}
+.managed-user-edit{display:flex;flex:1;align-items:center;gap:7px;flex-wrap:wrap}
+.managed-user-edit input,.managed-user-edit select{height:36px;min-width:150px;padding:0 9px;border:1px solid #e5e8ee;border-radius:6px;background:#fff;color:#384458;font-size:11px}
+@media(min-width:1201px){.master-toolbar .master-users-invite input,.master-toolbar .master-users-invite select{height:44px;font-size:13px}.managed-user-row>div b{font-size:13px}.managed-user-row>div small{font-size:11px}.managed-user-role{font-size:12px}}
+@media(max-width:760px){.master-toolbar .master-users-invite{display:grid;grid-template-columns:1fr 1fr}.master-toolbar .master-users-invite input,.master-toolbar .master-users-invite select{width:100%;min-width:0}.managed-user-row{align-items:flex-start;flex-wrap:wrap}.managed-user-row>div{flex:1 1 calc(100% - 44px)}.managed-user-role{margin-left:35px}.managed-user-edit{flex:1 1 calc(100% - 40px)}.managed-user-edit input,.managed-user-edit select{flex:1;min-width:110px}}
 
 /* Desktop density tuned for Chrome at 100% zoom. Keep mobile/tablet sizing intact. */
 @media(min-width:1201px){
