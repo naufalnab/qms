@@ -43,10 +43,10 @@ export default function MasterData() {
     if (!client) return;
     let active = true;
     setUsersLoading(true);
-    void client.from('profiles').select('id,full_name,role,is_active').order('full_name').then(({ data, error: queryError }) => {
+    void client.from('profiles').select('id,full_name,role,is_active').order('full_name').then((result: { data: UserItem[] | null; error: { message: string } | null }) => {
       if (!active) return;
-      if (queryError) setMessage(queryError.message);
-      else setUsers((data ?? []) as UserItem[]);
+      if (result.error) setMessage(result.error.message);
+      else setUsers(result.data ?? []);
       setUsersLoading(false);
     });
     return () => { active = false; };
