@@ -9,7 +9,7 @@ import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
 import { QmsDataProvider } from '@/components/qms-data-provider';
 
 const links = [['/','◫','Dashboard'],['/documents','▤','Dokumen'],['/actions','◉','Butuh Tindakan'],['/history','◷','Riwayat'],['/analytics','▥','Analitik'],['/master-data','⚙','Master Data']];
-const roleLabels: Record<string, string> = { admin: 'Administrator', submitter: 'QMS / Submitter', reviewer: 'QMSR / Reviewer', viewer: 'Viewer' };
+const roleLabels: Record<string, string> = { admin: 'Administrator', qms: 'QMS', qms_section_head: 'QMS Section Head', qmsr: 'QMSR' };
 type Profile = { full_name: string; role: string };
 
 export function AppShell({ children }: { children: React.ReactNode }) {

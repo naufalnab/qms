@@ -8,7 +8,7 @@ const dateOnly = (value: string | null | undefined) => {
 };
 const eventLabels: Record<string, string> = {
   document_created: 'Pengajuan dibuat', document_updated: 'Metadata diperbarui', submitted: statusLabels.submitted,
-  review_started: statusLabels.under_review, need_revision: statusLabels.need_revision, resubmitted: statusLabels.resubmitted,
+  review_started: statusLabels.under_review, qmsr_review_started: statusLabels.qmsr_review, need_revision: statusLabels.need_revision, resubmitted: statusLabels.resubmitted,
   approved: statusLabels.approved, rejected: statusLabels.rejected, closed: statusLabels.closed,
   follow_up_added: 'Follow-up dicatat', archived: 'Dokumen diarsipkan',
 };
@@ -60,7 +60,7 @@ export async function loadMasterData(client: SupabaseClient) {
   for (const result of [departmentRows, typeRows, reviewerRows, profiles]) if (result.error) throw result.error;
   const names = new Map((profiles.data ?? []).map(profile => [profile.id, profile.full_name]));
   const activeReviewerIds = new Set((reviewerRows.data ?? []).map(row => row.id));
-  const activeReviewerProfiles = (profiles.data ?? []).filter(profile => (profile.role === 'reviewer' || profile.role === 'admin') && profile.is_active);
+  const activeReviewerProfiles = (profiles.data ?? []).filter(profile => (profile.role === 'qmsr' || profile.role === 'admin') && profile.is_active);
   return {
     departments: (departmentRows.data ?? []) as Department[],
     documentTypes: (typeRows.data ?? []).map(row => ({ id: row.id, name: row.name, sla: row.default_sla_days })) as DocumentType[],

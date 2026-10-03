@@ -24,7 +24,9 @@ export default function NewSubmission() {
     if (!form.reportValidity()) return;
     const values = new FormData(form);
     const reason = String(values.get('reason') || '');
+    const reviewerId = String(values.get('reviewer') || '');
     if (condition === 'existing' && !reason.trim()) { setError('Alasan perubahan wajib diisi untuk dokumen lama.'); return; }
+    if (!asDraft && !reviewerId) { setError('Pilih reviewer QMSR sebelum mengirim pengajuan.'); return; }
     setError(''); setSaving(true);
     try {
       const status = asDraft ? 'draft' : 'submitted';
@@ -53,7 +55,6 @@ export default function NewSubmission() {
         client.from('document_types').select('id,default_sla_days').eq('name', type).single(),
       ]);
       if (departmentRow.error || typeRow.error) throw new Error('Master data departemen atau jenis dokumen belum lengkap.');
-      const reviewerId = String(values.get('reviewer') || '');
       let reviewer: { data: { id: string } | null; error: { message: string } | null } = { data: null, error: null };
       if (reviewerId) {
         reviewer = await client.from('reviewers').select('id').eq('id', reviewerId).eq('is_active', true).maybeSingle();
@@ -99,7 +100,7 @@ export default function NewSubmission() {
         <section className="panel form-panel"><div className="form-section-head"><span className="form-step">02</span><div><h2>Penanggung Jawab</h2><p>PIC pengajuan dan reviewer dokumen.</p></div></div>
           <div className="form-grid">
             <label>PIC Dokumen <input name="pic" placeholder="Nama PIC / Requestor (opsional)" /></label>
-            <label>Reviewer QMSR <select name="reviewer" defaultValue=""><option value="">Pilih reviewer (opsional)</option>{reviewers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+            <label>Reviewer QMSR <select name="reviewer" defaultValue=""><option value="">Pilih reviewer QMSR</option>{reviewers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label>Prioritas <em>*</em><select name="priority" defaultValue="medium"><option value="low">Rendah</option><option value="medium">Sedang</option><option value="high">Tinggi</option><option value="critical">Kritis</option></select></label>
             <label className="span-two">Catatan Tambahan<textarea name="remarks" rows={3} placeholder="Informasi tambahan (opsional)" /></label>
           </div>

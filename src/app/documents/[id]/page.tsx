@@ -7,7 +7,7 @@ import { PageHeading, PriorityBadge, SlaBadge, StatusBadge } from '@/components/
 import { useQmsData } from '@/components/qms-data-provider';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
 
-const transitionActions: Status[] = ['submitted','under_review','need_revision','resubmitted','approved','rejected','closed'];
+const transitionActions: Status[] = ['submitted','under_review','qmsr_review','need_revision','resubmitted','approved','rejected','closed'];
 type EditValues = Pick<Submission, 'title' | 'condition' | 'department' | 'type' | 'docNo' | 'revision' | 'pic' | 'priority' | 'requested' | 'reason' | 'remarks'> & { reviewerId: string };
 
 export default function DocumentDetail({ params }: { params: Promise<{ id: string }> }) {
@@ -15,7 +15,7 @@ export default function DocumentDetail({ params }: { params: Promise<{ id: strin
   const { submissions, departments, documentTypes, reviewers, loading, error, reload } = useQmsData();
   const doc = submissions.find(item => item.id === id) || demoSubmissions.find(item => item.id === id);
   const [statusOverride, setStatusOverride] = useState<Status | null>(null);
-  const [role, setRole] = useState(isDemoMode ? 'admin' : 'viewer');
+  const [role, setRole] = useState(isDemoMode ? 'admin' : 'qms');
   const [userId, setUserId] = useState('');
   const [editing, setEditing] = useState(false);
   const [editValues, setEditValues] = useState<EditValues | null>(null);
@@ -48,7 +48,7 @@ export default function DocumentDetail({ params }: { params: Promise<{ id: strin
   if (!doc) return <div className="panel">Dokumen tidak ditemukan. <Link className="text-link" href="/documents">Kembali ke dokumen</Link></div>;
 
   const currentDocument = { ...doc, status };
-  const canEdit = role === 'admin' || (role === 'submitter' && doc.createdBy === userId && ['draft', 'need_revision'].includes(status));
+  const canEdit = role === 'admin' || (role === 'qms' && doc.createdBy === userId && ['draft', 'need_revision'].includes(status));
   const allowed = transitionActions.filter(next => canTransitionStatus(status, next, role));
   const startEditing = () => {
     setEditValues({ title: doc.title, condition: doc.condition, department: doc.department, type: doc.type, docNo: doc.docNo, revision: doc.revision, pic: doc.pic, reviewerId: reviewers.find(item => item.name === doc.reviewer)?.id || '', priority: doc.priority, requested: doc.requested, reason: doc.reason, remarks: doc.remarks });
@@ -164,7 +164,7 @@ export default function DocumentDetail({ params }: { params: Promise<{ id: strin
       </div>
       <aside className="detail-aside">
         <section className="panel workflow-panel"><div className="eyebrow">WORKFLOW</div><h2>Perbarui Status</h2><p>Pilih tindakan sesuai hasil proses dokumen.</p>
-          {status === 'under_review' && <label className="workflow-note">Catatan QMSR<textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Catatan wajib untuk revisi atau penolakan; opsional untuk approval." /></label>}
+          {(status === 'under_review' || status === 'qmsr_review') && <label className="workflow-note">Catatan {status === 'under_review' ? 'QMS Section Head' : 'QMSR'}<textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Catatan wajib jika meminta revisi atau menolak." /></label>}
           {message && <div className="inline-message" role="status">{message}</div>}
           {allowed.map(next => <button key={next} disabled={busy} className={`workflow-button ${next === 'approved' ? 'approve' : ''} ${next === 'rejected' ? 'reject' : ''}`} onClick={() => void apply(next)}><span>{next === 'need_revision' ? '↻' : next === 'approved' ? '✓' : next === 'rejected' ? '×' : '→'}</span>{statusLabels[next]}</button>)}
           {!allowed.length && <div className="terminal-note">Tidak ada tindakan workflow yang tersedia untuk role ini.</div>}

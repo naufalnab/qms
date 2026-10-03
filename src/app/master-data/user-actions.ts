@@ -4,7 +4,7 @@ import { createServerClient } from '@supabase/ssr';
 import { createClient, type User } from '@supabase/supabase-js';
 import { cookies } from 'next/headers';
 
-const validRoles = ['admin', 'submitter', 'reviewer', 'viewer'] as const;
+const validRoles = ['admin', 'qms', 'qms_section_head', 'qmsr'] as const;
 type ManagedRole = typeof validRoles[number];
 type ManagedUser = { id: string; email: string; full_name: string; role: ManagedRole; is_active: boolean; invited: boolean };
 type ActionResult = { error?: string; message?: string; users?: ManagedUser[] };

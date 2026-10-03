@@ -9,7 +9,7 @@ import { createManagedUser, listManagedUsers, updateManagedUser } from '@/app/ma
 type Tab = 'Departemen' | 'Jenis Dokumen' | 'Reviewer' | 'Pengguna';
 type MasterItem = { id: string; name: string; detail: string; sla: number | null };
 type UserItem = { id: string; email: string; full_name: string; role: string; is_active: boolean; invited: boolean };
-const roleLabels: Record<string, string> = { admin: 'Admin', submitter: 'QMS / Submitter', reviewer: 'QMSR / Reviewer', viewer: 'Viewer' };
+const roleLabels: Record<string, string> = { admin: 'Admin', qms: 'QMS', qms_section_head: 'QMS Section Head', qmsr: 'QMSR' };
 
 export default function MasterData() {
   const [tab, setTab] = useState<Tab>('Departemen');
@@ -27,10 +27,10 @@ export default function MasterData() {
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserPassword, setNewUserPassword] = useState('');
-  const [newUserRole, setNewUserRole] = useState('submitter');
+  const [newUserRole, setNewUserRole] = useState('qms');
   const [editingUserId, setEditingUserId] = useState('');
   const [editingUserName, setEditingUserName] = useState('');
-  const [editingUserRole, setEditingUserRole] = useState('submitter');
+  const [editingUserRole, setEditingUserRole] = useState('qms');
   const { departments, documentTypes, reviewers, availableReviewers, loading, error, reload } = useQmsData();
   useEffect(() => {
     if (isDemoMode) return;
@@ -130,7 +130,7 @@ export default function MasterData() {
     if (result.error) setMessage(result.error);
     else {
       setMessage(result.message || 'Pengguna berhasil ditambahkan.');
-      setNewUserEmail(''); setNewUserName(''); setNewUserPassword(''); setNewUserRole('submitter');
+      setNewUserEmail(''); setNewUserName(''); setNewUserPassword(''); setNewUserRole('qms');
       await refreshUsers();
     }
     setBusy(false);

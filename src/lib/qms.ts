@@ -1,4 +1,4 @@
-export type Status = 'draft' | 'submitted' | 'under_review' | 'need_revision' | 'resubmitted' | 'approved' | 'rejected' | 'closed';
+export type Status = 'draft' | 'submitted' | 'under_review' | 'qmsr_review' | 'need_revision' | 'resubmitted' | 'approved' | 'rejected' | 'closed';
 export type Priority = 'low' | 'medium' | 'high' | 'critical';
 export type Condition = 'new' | 'existing';
 export type Department = { id: string; name: string };
@@ -12,8 +12,8 @@ export type Submission = {
 
 export const departments: Department[] = ['QMS','QC','Production','Warehouse','Purchasing NRM','HRM','Maintenance','Finance','QA','PPIC','RND','Purchasing RM','EXIM','Marketing','Spec','General Affair','House Keeping','Cold Storage','LAB','WHS','HSE','ENG'].map((name, i) => ({ id: String(i + 1), name }));
 export const documentTypes: DocumentType[] = [ { id:'form', name:'Form', sla:3 }, { id:'wi', name:'WI', sla:5 }, { id:'sop', name:'SOP', sla:7 }, { id:'policy', name:'Policy', sla:10 }, { id:'external', name:'External Document', sla:5 }, { id:'other', name:'Other', sla:7 } ];
-export const statusLabels: Record<Status, string> = { draft:'Draft', submitted:'Diajukan', under_review:'Dalam Review', need_revision:'Perlu Revisi', resubmitted:'Diajukan Ulang', approved:'Disetujui', rejected:'Ditolak', closed:'Ditutup' };
-export const statusOrder: Status[] = ['draft','submitted','under_review','need_revision','resubmitted','approved','rejected','closed'];
+export const statusLabels: Record<Status, string> = { draft:'Draft', submitted:'Diajukan', under_review:'Review QMS Section Head', qmsr_review:'Review QMSR', need_revision:'Perlu Revisi', resubmitted:'Diajukan Ulang', approved:'Disetujui', rejected:'Ditolak', closed:'Ditutup' };
+export const statusOrder: Status[] = ['draft','submitted','under_review','qmsr_review','need_revision','resubmitted','approved','rejected','closed'];
 export const priorityLabels: Record<Priority,string> = { low:'Rendah', medium:'Sedang', high:'Tinggi', critical:'Kritis' };
 export const slaLabels = { on_time:'Tepat Waktu', due_soon:'Segera Jatuh Tempo', overdue:'Terlambat', completed:'Selesai' } as const;
 const jakartaDate = new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
@@ -35,9 +35,16 @@ export const demoSubmissions: Submission[] = [
 export function calculateDueDate(requested:string, sla:number) { const [year,month,day]=requested.split('-').map(Number); const d=new Date(Date.UTC(year,month-1,day+sla)); return d.toISOString().slice(0,10); }
 export function calculateAging(doc:Submission, todayDate=new Date()) { const end=doc.closed?new Date(`${doc.closed}T12:00:00+07:00`):new Date(`${new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(todayDate)}T12:00:00+07:00`); const start=new Date(`${doc.requested}T12:00:00+07:00`); return Math.max(0,Math.floor((end.getTime()-start.getTime())/86400000)); }
 export function getSlaStatus(doc:Submission, todayDate=new Date()): keyof typeof slaLabels { if(doc.status==='closed')return 'completed'; const todayIso=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Jakarta',year:'numeric',month:'2-digit',day:'2-digit'}).format(todayDate); if(todayIso>doc.due)return 'overdue'; const days=Math.floor((new Date(`${doc.due}T12:00:00+07:00`).getTime()-new Date(`${todayIso}T12:00:00+07:00`).getTime())/86400000); return days<=2?'due_soon':'on_time'; }
-export function getActionRequired(doc:Submission) { if(doc.status==='closed'||doc.status==='rejected')return 'Tidak ada tindakan'; if(doc.status==='need_revision')return 'Perbaiki dokumen'; if(doc.status==='approved')return 'Lengkapi dan tutup dokumen'; if(getSlaStatus(doc)==='overdue')return 'Follow up reviewer'; if(getSlaStatus(doc)==='due_soon')return 'Follow up sebelum deadline'; if(doc.status==='submitted'||doc.status==='resubmitted')return 'Menunggu review'; if(doc.status==='under_review')return 'Menunggu hasil review'; return 'Kirim pengajuan'; }
-export const allowedTransitions:Record<Status,Status[]>={draft:['submitted'],submitted:['under_review'],under_review:['need_revision','approved','rejected'],need_revision:['resubmitted'],resubmitted:['under_review'],approved:['closed'],rejected:[],closed:[]};
-export function canTransitionStatus(from:Status,to:Status,role='admin') { if(!allowedTransitions[from].includes(to))return false; if((to==='approved'||to==='rejected'||to==='need_revision'||to==='under_review')&&role==='submitter')return false; if(to==='closed'&&role==='reviewer')return false; return role!=='viewer'; }
+export function getActionRequired(doc:Submission) { if(doc.status==='closed'||doc.status==='rejected')return 'Tidak ada tindakan'; if(doc.status==='need_revision')return 'Perbaiki dokumen'; if(doc.status==='approved')return 'Lengkapi dan tutup dokumen'; if(getSlaStatus(doc)==='overdue')return 'Follow up reviewer'; if(getSlaStatus(doc)==='due_soon')return 'Follow up sebelum deadline'; if(doc.status==='submitted'||doc.status==='resubmitted')return 'Menunggu QMS Section Head'; if(doc.status==='under_review')return 'Menunggu keputusan QMS Section Head'; if(doc.status==='qmsr_review')return 'Menunggu QMSR'; return 'Kirim pengajuan'; }
+export const allowedTransitions:Record<Status,Status[]>={draft:['submitted'],submitted:['under_review'],under_review:['need_revision','qmsr_review'],qmsr_review:['need_revision','approved','rejected'],need_revision:['resubmitted'],resubmitted:['under_review'],approved:['closed'],rejected:[],closed:[]};
+export function canTransitionStatus(from:Status,to:Status,role='admin') {
+  if(!allowedTransitions[from].includes(to))return false;
+  if(role==='admin')return true;
+  if(role==='qms')return (from==='draft'&&to==='submitted')||(from==='need_revision'&&to==='resubmitted');
+  if(role==='qms_section_head')return (to==='under_review'&&(from==='submitted'||from==='resubmitted'))||(from==='under_review'&&(to==='qmsr_review'||to==='need_revision'));
+  if(role==='qmsr')return from==='qmsr_review'&&(to==='approved'||to==='need_revision'||to==='rejected');
+  return false;
+}
 export const formatDate=(value?:string)=>value?new Intl.DateTimeFormat('id-ID',{day:'2-digit',month:'short',year:'numeric',timeZone:'Asia/Jakarta'}).format(new Date(`${value.slice(0,10)}T12:00:00+07:00`)):'—';
 export const currentMonthKey=()=>`${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}`;
 export const todayLabel=()=>new Intl.DateTimeFormat('id-ID',{weekday:'long',day:'2-digit',month:'long',year:'numeric',timeZone:'Asia/Jakarta'}).format(new Date());

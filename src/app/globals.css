@@ -162,4 +162,5 @@
 .delete-document-button:disabled{opacity:.55;cursor:wait}
 .mobile-document-row>a{display:block;color:inherit;text-decoration:none}
 .mobile-document-row>.delete-document-button{margin-top:10px}
+.status-qmsr_review{color:#536eae;background:#edf1ff}
 @media(min-width:1201px){.document-actions .row-more{font-size:12px}.delete-document-button{font-size:12px;padding:8px 11px}}
