@@ -124,7 +124,10 @@ export async function updateManagedUser(id: string, nameValue: string, roleValue
 
   const { error: updateError } = await context.adminClient.from('profiles').update({ full_name: fullName, role: roleValue, is_active: active }).eq('id', id);
   if (updateError) return { error: updateError.message };
-  const { error: banError } = await context.adminClient.auth.admin.updateUserById(id, { ban_duration: active ? 'none' : '876000h' });
-  if (banError) return { error: `Profil tersimpan, tetapi status login belum berhasil diperbarui: ${banError.message}` };
+  const { error: authUpdateError } = await context.adminClient.auth.admin.updateUserById(id, {
+    ban_duration: active ? 'none' : '876000h',
+    user_metadata: { full_name: fullName },
+  });
+  if (authUpdateError) return { error: `Profil tersimpan, tetapi metadata akun belum berhasil diperbarui: ${authUpdateError.message}` };
   return { message: active ? 'Pengguna berhasil diperbarui dan diaktifkan.' : 'Pengguna dinonaktifkan. Data dan riwayat dokumennya tetap tersimpan.' };
 }
