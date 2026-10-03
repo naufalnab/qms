@@ -34,7 +34,7 @@ export default function NewSubmission() {
           id: `demo-${index}`, number: `QMS-${date.slice(0,4)}-${String(index).padStart(4,'0')}`, requested: date,
           condition, department: String(values.get('department')), type, docNo: String(values.get('docNo')),
           title: String(values.get('title')), revision: String(values.get('revision')), reason,
-          pic: String(values.get('pic')), reviewer: String(values.get('reviewer')),
+          pic: String(values.get('pic')), reviewer: reviewers.find(item => item.id === values.get('reviewer'))?.name || '',
           priority: String(values.get('priority')) as Priority, sla: selectedType?.sla || 7, due: dueDate,
           status, remarks: String(values.get('remarks') || ''),
           history: [{ action: asDraft ? 'Draft disimpan' : 'Diajukan', actor: 'Rosa Amelia', at: todayISO() }], followups: [],
@@ -48,13 +48,12 @@ export default function NewSubmission() {
       if (!client) throw new Error('Konfigurasi Supabase tidak tersedia.');
       const { data: { user } } = await client.auth.getUser();
       if (!user) throw new Error('Sesi login berakhir. Silakan masuk kembali.');
-      const [departmentRow, typeRow, reviewerRow] = await Promise.all([
+      const [departmentRow, typeRow] = await Promise.all([
         client.from('departments').select('id').eq('name', String(values.get('department'))).single(),
         client.from('document_types').select('id,default_sla_days').eq('name', type).single(),
-        client.from('profiles').select('id').eq('full_name', String(values.get('reviewer'))).single(),
       ]);
-      if (departmentRow.error || typeRow.error || reviewerRow.error) throw new Error('Master data departemen, jenis dokumen, atau reviewer belum lengkap.');
-      const reviewer = await client.from('reviewers').select('id').eq('id', reviewerRow.data.id).eq('is_active', true).maybeSingle();
+      if (departmentRow.error || typeRow.error) throw new Error('Master data departemen atau jenis dokumen belum lengkap.');
+      const reviewer = await client.from('reviewers').select('id').eq('id', String(values.get('reviewer'))).eq('is_active', true).maybeSingle();
       if (reviewer.error || !reviewer.data) throw new Error('Reviewer belum terdaftar sebagai reviewer aktif.');
       const slaDays = typeRow.data.default_sla_days;
       const due = calculateDueDate(date, slaDays);
@@ -96,7 +95,7 @@ export default function NewSubmission() {
         <section className="panel form-panel"><div className="form-section-head"><span className="form-step">02</span><div><h2>Penanggung Jawab</h2><p>PIC pengajuan dan reviewer dokumen.</p></div></div>
           <div className="form-grid">
             <label>PIC Dokumen <em>*</em><input required name="pic" placeholder="Nama PIC / Requestor" /></label>
-            <label>Reviewer QMSR <em>*</em><select required name="reviewer" defaultValue=""><option value="" disabled>Pilih reviewer</option>{reviewers.map(name => <option key={name}>{name}</option>)}</select></label>
+            <label>Reviewer QMSR <em>*</em><select required name="reviewer" defaultValue=""><option value="" disabled>Pilih reviewer</option>{reviewers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label>Prioritas <em>*</em><select name="priority" defaultValue="medium"><option value="low">Rendah</option><option value="medium">Sedang</option><option value="high">Tinggi</option><option value="critical">Kritis</option></select></label>
             <label className="span-two">Catatan Tambahan<textarea name="remarks" rows={3} placeholder="Informasi tambahan (opsional)" /></label>
           </div>

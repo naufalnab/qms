@@ -3,6 +3,7 @@ export type Priority = 'low' | 'medium' | 'high' | 'critical';
 export type Condition = 'new' | 'existing';
 export type Department = { id: string; name: string };
 export type DocumentType = { id: string; name: string; sla: number };
+export type Reviewer = { id: string; name: string };
 export type HistoryEntry = { action: string; note?: string; actor: string; at: string };
 export type Followup = { date: string; result: string; next: string; actor: string };
 export type Submission = {

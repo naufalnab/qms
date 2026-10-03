@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { departments as demoDepartments, documentTypes as demoTypes, statusLabels, type Submission, type Status, type Department, type DocumentType } from '@/lib/qms';
+import { departments as demoDepartments, documentTypes as demoTypes, statusLabels, type Submission, type Status, type Department, type DocumentType, type Reviewer } from '@/lib/qms';
 
 const dateOnly = (value: string | null | undefined) => {
   if (!value) return undefined;
@@ -55,19 +55,23 @@ export async function loadMasterData(client: SupabaseClient) {
     client.from('departments').select('id,name').eq('is_active', true).order('name'),
     client.from('document_types').select('id,name,default_sla_days').eq('is_active', true).order('name'),
     client.from('reviewers').select('id').eq('is_active', true),
-    client.from('profiles').select('id,full_name'),
+    client.from('profiles').select('id,full_name,role,is_active'),
   ]);
   for (const result of [departmentRows, typeRows, reviewerRows, profiles]) if (result.error) throw result.error;
   const names = new Map((profiles.data ?? []).map(profile => [profile.id, profile.full_name]));
+  const activeReviewerIds = new Set((reviewerRows.data ?? []).map(row => row.id));
+  const activeReviewerProfiles = (profiles.data ?? []).filter(profile => profile.role === 'reviewer' && profile.is_active);
   return {
     departments: (departmentRows.data ?? []) as Department[],
     documentTypes: (typeRows.data ?? []).map(row => ({ id: row.id, name: row.name, sla: row.default_sla_days })) as DocumentType[],
-    reviewers: (reviewerRows.data ?? []).map(row => names.get(row.id)).filter((name): name is string => Boolean(name)),
+    reviewers: (reviewerRows.data ?? []).map(row => ({ id: row.id, name: names.get(row.id) })).filter((reviewer): reviewer is Reviewer => Boolean(reviewer.name)),
+    availableReviewers: activeReviewerProfiles.filter(profile => !activeReviewerIds.has(profile.id)).map(profile => ({ id: profile.id, name: profile.full_name })) as Reviewer[],
   };
 }
 
 export const demoMasterData = {
   departments: demoDepartments,
   documentTypes: demoTypes,
-  reviewers: ['Andi QMSR','Nina Putri','Rizky Hidayat'],
+  reviewers: [{ id: 'demo-reviewer-1', name: 'Andi QMSR' }, { id: 'demo-reviewer-2', name: 'Nina Putri' }, { id: 'demo-reviewer-3', name: 'Rizky Hidayat' }],
+  availableReviewers: [],
 };
