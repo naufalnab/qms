@@ -185,7 +185,7 @@ export default function MasterData() {
           </>}
         </form>}
       </div>
-      {tab === 'Reviewer' && !editingId && <p className="muted-copy">Reviewer ditambahkan dari akun aktif yang rolenya sudah disetel sebagai reviewer di profil pengguna.</p>}
+      {tab === 'Reviewer' && !editingId && <p className="muted-copy">Tambahkan akun reviewer aktif. Akun Admin juga bisa ditugaskan sebagai reviewer.</p>}
       {message && <div className="inline-message" role="status">{message}</div>}
       {error && <div className="data-error" role="alert">{error}</div>}
       {!loading && tab === 'Pengguna' && usersLoading && <div className="data-loading">Memuat pengguna...</div>}

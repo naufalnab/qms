@@ -60,7 +60,7 @@ export async function loadMasterData(client: SupabaseClient) {
   for (const result of [departmentRows, typeRows, reviewerRows, profiles]) if (result.error) throw result.error;
   const names = new Map((profiles.data ?? []).map(profile => [profile.id, profile.full_name]));
   const activeReviewerIds = new Set((reviewerRows.data ?? []).map(row => row.id));
-  const activeReviewerProfiles = (profiles.data ?? []).filter(profile => profile.role === 'reviewer' && profile.is_active);
+  const activeReviewerProfiles = (profiles.data ?? []).filter(profile => (profile.role === 'reviewer' || profile.role === 'admin') && profile.is_active);
   return {
     departments: (departmentRows.data ?? []) as Department[],
     documentTypes: (typeRows.data ?? []).map(row => ({ id: row.id, name: row.name, sla: row.default_sla_days })) as DocumentType[],
