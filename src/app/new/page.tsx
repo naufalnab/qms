@@ -53,15 +53,19 @@ export default function NewSubmission() {
         client.from('document_types').select('id,default_sla_days').eq('name', type).single(),
       ]);
       if (departmentRow.error || typeRow.error) throw new Error('Master data departemen atau jenis dokumen belum lengkap.');
-      const reviewer = await client.from('reviewers').select('id').eq('id', String(values.get('reviewer'))).eq('is_active', true).maybeSingle();
-      if (reviewer.error || !reviewer.data) throw new Error('Reviewer belum terdaftar sebagai reviewer aktif.');
+      const reviewerId = String(values.get('reviewer') || '');
+      let reviewer: { data: { id: string } | null; error: { message: string } | null } = { data: null, error: null };
+      if (reviewerId) {
+        reviewer = await client.from('reviewers').select('id').eq('id', reviewerId).eq('is_active', true).maybeSingle();
+        if (reviewer.error || !reviewer.data) throw new Error('Reviewer belum terdaftar sebagai reviewer aktif.');
+      }
       const slaDays = typeRow.data.default_sla_days;
       const due = calculateDueDate(date, slaDays);
       const created = await client.from('document_submissions').insert({
         request_date: date, document_condition: condition, department_id: departmentRow.data.id,
         document_type_id: typeRow.data.id, document_number: String(values.get('docNo')),
         document_title: String(values.get('title')), revision: String(values.get('revision')),
-        change_reason: reason, requestor_name: String(values.get('pic')), reviewer_id: reviewer.data.id,
+        change_reason: reason, requestor_name: String(values.get('pic')), reviewer_id: reviewer.data?.id || null,
         priority: String(values.get('priority')), sla_days: slaDays, due_date: due,
         status, remarks: String(values.get('remarks') || ''), created_by: user.id,
       }).select('id').single();
@@ -95,7 +99,7 @@ export default function NewSubmission() {
         <section className="panel form-panel"><div className="form-section-head"><span className="form-step">02</span><div><h2>Penanggung Jawab</h2><p>PIC pengajuan dan reviewer dokumen.</p></div></div>
           <div className="form-grid">
             <label>PIC Dokumen <input name="pic" placeholder="Nama PIC / Requestor (opsional)" /></label>
-            <label>Reviewer QMSR <em>*</em><select required name="reviewer" defaultValue=""><option value="" disabled>Pilih reviewer</option>{reviewers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+            <label>Reviewer QMSR <select name="reviewer" defaultValue=""><option value="">Pilih reviewer (opsional)</option>{reviewers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label>Prioritas <em>*</em><select name="priority" defaultValue="medium"><option value="low">Rendah</option><option value="medium">Sedang</option><option value="high">Tinggi</option><option value="critical">Kritis</option></select></label>
             <label className="span-two">Catatan Tambahan<textarea name="remarks" rows={3} placeholder="Informasi tambahan (opsional)" /></label>
           </div>
