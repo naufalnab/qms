@@ -42,7 +42,6 @@ export default function MasterData() {
     const client = getSupabaseBrowserClient();
     if (!client) return;
     let active = true;
-    setUsersLoading(true);
     void client.from('profiles').select('id,full_name,role,is_active').order('full_name').then((result: { data: UserItem[] | null; error: { message: string } | null }) => {
       if (!active) return;
       if (result.error) setMessage(result.error.message);
@@ -111,7 +110,7 @@ export default function MasterData() {
     if (!updateError) { if (editingId === id) cancelEdit(); await reload(); }
   };
 
-  const changeTab = (item: Tab) => { setTab(item); cancelEdit(); setMessage(''); setName(''); setReviewerId(''); };
+  const changeTab = (item: Tab) => { if (item === 'Pengguna' && !users.length) setUsersLoading(true); setTab(item); cancelEdit(); setMessage(''); setName(''); setReviewerId(''); };
 
   return <>
     <PageHeading eyebrow="PENGATURAN WORKSPACE" title="Master Data" description="Kelola data workspace dan pengguna." />
@@ -140,6 +139,7 @@ export default function MasterData() {
       {tab === 'Reviewer' && !editingId && <p className="muted-copy">Reviewer ditambahkan dari akun aktif yang rolenya sudah disetel sebagai reviewer di profil pengguna.</p>}
       {message && <div className="inline-message" role="status">{message}</div>}
       {error && <div className="data-error" role="alert">{error}</div>}
+      {!loading && tab === 'Pengguna' && usersLoading && <div className="data-loading">Memuat pengguna...</div>}
       {loading ? <div className="data-loading">Memuat master data…</div> : items.length ? items.map(item => <div className="master-row" key={item.id}>
         <span className="master-symbol">{tab === 'Departemen' ? '▦' : tab === 'Jenis Dokumen' ? '▤' : '♙'}</span>
         <div><b>{item.name}</b><small>{item.detail}</small></div>
