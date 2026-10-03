@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { PageHeading } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
-import { inviteManagedUser, listManagedUsers, updateManagedUser } from '@/app/master-data/user-actions';
+import { createManagedUser, listManagedUsers, updateManagedUser } from '@/app/master-data/user-actions';
 
 type Tab = 'Departemen' | 'Jenis Dokumen' | 'Reviewer' | 'Pengguna';
 type MasterItem = { id: string; name: string; detail: string; sla: number | null };
@@ -26,6 +26,7 @@ export default function MasterData() {
   const [usersLoading, setUsersLoading] = useState(false);
   const [newUserName, setNewUserName] = useState('');
   const [newUserEmail, setNewUserEmail] = useState('');
+  const [newUserPassword, setNewUserPassword] = useState('');
   const [newUserRole, setNewUserRole] = useState('submitter');
   const [editingUserId, setEditingUserId] = useState('');
   const [editingUserName, setEditingUserName] = useState('');
@@ -123,13 +124,13 @@ export default function MasterData() {
     setUsersLoading(false);
   };
 
-  const inviteUser = async (event: React.FormEvent<HTMLFormElement>) => {
+  const createUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true); setMessage('');
-    const result = await inviteManagedUser(newUserEmail, newUserName, newUserRole);
+    const result = await createManagedUser(newUserEmail, newUserName, newUserPassword, newUserRole);
     if (result.error) setMessage(result.error);
     else {
-      setMessage(result.message || 'Undangan berhasil dikirim.');
-      setNewUserEmail(''); setNewUserName(''); setNewUserRole('submitter');
+      setMessage(result.message || 'Pengguna berhasil ditambahkan.');
+      setNewUserEmail(''); setNewUserName(''); setNewUserPassword(''); setNewUserRole('submitter');
       await refreshUsers();
     }
     setBusy(false);
@@ -158,11 +159,12 @@ export default function MasterData() {
     <section className="panel master-panel">
       <div className="master-tabs">{(['Departemen', 'Jenis Dokumen', 'Reviewer', ...(isAdmin ? ['Pengguna' as const] : [])] as Tab[]).map(item => <button onClick={() => changeTab(item)} className={tab === item ? 'current' : ''} key={item}>{item}</button>)}</div>
       <div className="master-toolbar"><div><b>{tab}</b><small>{tab === 'Pengguna' ? `${users.length} pengguna` : `${items.length} data aktif`}</small></div>
-        {tab === 'Pengguna' && <form className="master-users-invite" onSubmit={inviteUser}>
+        {tab === 'Pengguna' && <form className="master-users-create" onSubmit={createUser}>
           <input required type="text" value={newUserName} onChange={event => setNewUserName(event.target.value)} placeholder="Nama lengkap" aria-label="Nama pengguna baru" />
-          <input required type="email" value={newUserEmail} onChange={event => setNewUserEmail(event.target.value)} placeholder="Email undangan" aria-label="Email pengguna baru" />
+          <input required type="email" value={newUserEmail} onChange={event => setNewUserEmail(event.target.value)} placeholder="Email pengguna" aria-label="Email pengguna baru" />
+          <input required type="password" autoComplete="new-password" minLength={8} maxLength={72} value={newUserPassword} onChange={event => setNewUserPassword(event.target.value)} placeholder="Kata sandi awal (min. 8 karakter)" aria-label="Kata sandi awal pengguna" />
           <select value={newUserRole} onChange={event => setNewUserRole(event.target.value)} aria-label="Role pengguna baru">{Object.entries(roleLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select>
-          <button className="button primary" disabled={busy || isDemoMode}>Undang Pengguna</button>
+          <button className="button primary" disabled={busy || isDemoMode}>{busy ? 'Menyimpan…' : 'Tambah Pengguna'}</button>
         </form>}
         {tab !== 'Pengguna' && <form onSubmit={save}>
           {editingId ? <>

@@ -74,6 +74,38 @@ export async function inviteManagedUser(emailValue: string, nameValue: string, r
   return { message: `Undangan berhasil dikirim ke ${email}.` };
 }
 
+export async function createManagedUser(emailValue: string, nameValue: string, password: string, roleValue: string): Promise<ActionResult> {
+  const context = await getAdminContext();
+  if ('error' in context) return context;
+  const email = emailValue.trim().toLowerCase();
+  const fullName = nameValue.trim();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return { error: 'Masukkan alamat email yang valid.' };
+  if (fullName.length < 2 || fullName.length > 120) return { error: 'Nama harus terdiri dari 2–120 karakter.' };
+  if (password.length < 8 || password.length > 72) return { error: 'Kata sandi harus terdiri dari 8–72 karakter.' };
+  if (!validRoles.includes(roleValue as ManagedRole)) return { error: 'Role yang dipilih tidak valid.' };
+
+  const { data, error } = await context.adminClient.auth.admin.createUser({
+    email,
+    password,
+    email_confirm: true,
+    user_metadata: { full_name: fullName },
+  });
+  if (error) return { error: error.message };
+  if (!data.user) return { error: 'Supabase tidak mengembalikan akun pengguna.' };
+
+  const { error: profileError } = await context.adminClient.from('profiles').upsert({
+    id: data.user.id,
+    full_name: fullName,
+    role: roleValue,
+    is_active: true,
+  }, { onConflict: 'id' });
+  if (profileError) {
+    await context.adminClient.auth.admin.deleteUser(data.user.id);
+    return { error: `Profil belum tersimpan dan akun dibatalkan: ${profileError.message}` };
+  }
+  return { message: `Akun ${email} berhasil dibuat. Sampaikan kata sandi awal kepada pengguna agar bisa login.` };
+}
+
 export async function updateManagedUser(id: string, nameValue: string, roleValue: string, active: boolean): Promise<ActionResult> {
   const context = await getAdminContext();
   if ('error' in context) return context;
