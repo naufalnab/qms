@@ -94,7 +94,7 @@ export default function NewSubmission() {
         </section>
         <section className="panel form-panel"><div className="form-section-head"><span className="form-step">02</span><div><h2>Penanggung Jawab</h2><p>PIC pengajuan dan reviewer dokumen.</p></div></div>
           <div className="form-grid">
-            <label>PIC Dokumen <em>*</em><input required name="pic" placeholder="Nama PIC / Requestor" /></label>
+            <label>PIC Dokumen <input name="pic" placeholder="Nama PIC / Requestor (opsional)" /></label>
             <label>Reviewer QMSR <em>*</em><select required name="reviewer" defaultValue=""><option value="" disabled>Pilih reviewer</option>{reviewers.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
             <label>Prioritas <em>*</em><select name="priority" defaultValue="medium"><option value="low">Rendah</option><option value="medium">Sedang</option><option value="high">Tinggi</option><option value="critical">Kritis</option></select></label>
             <label className="span-two">Catatan Tambahan<textarea name="remarks" rows={3} placeholder="Informasi tambahan (opsional)" /></label>
