@@ -1,12 +1,14 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { PageHeading } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
 
-type Tab = 'Departemen' | 'Jenis Dokumen' | 'Reviewer';
+type Tab = 'Departemen' | 'Jenis Dokumen' | 'Reviewer' | 'Pengguna';
 type MasterItem = { id: string; name: string; detail: string; sla: number | null };
+type UserItem = { id: string; full_name: string; role: string; is_active: boolean };
+const roleLabels: Record<string, string> = { admin: 'Admin', submitter: 'QMS / Submitter', reviewer: 'QMSR / Reviewer', viewer: 'Viewer' };
 
 export default function MasterData() {
   const [tab, setTab] = useState<Tab>('Departemen');
@@ -18,12 +20,43 @@ export default function MasterData() {
   const [editSla, setEditSla] = useState(7);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [users, setUsers] = useState<UserItem[]>([]);
+  const [usersLoading, setUsersLoading] = useState(false);
   const { departments, documentTypes, reviewers, availableReviewers, loading, error, reload } = useQmsData();
+  useEffect(() => {
+    if (isDemoMode) return;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    let active = true;
+    void (async () => {
+      const { data: { user } } = await client.auth.getUser();
+      if (!user) return;
+      const { data: profile } = await client.from('profiles').select('role').eq('id', user.id).maybeSingle();
+      if (active) setIsAdmin(profile?.role === 'admin');
+    })();
+    return () => { active = false; };
+  }, []);
+  useEffect(() => {
+    if (tab !== 'Pengguna' || !isAdmin || isDemoMode) return;
+    const client = getSupabaseBrowserClient();
+    if (!client) return;
+    let active = true;
+    setUsersLoading(true);
+    void client.from('profiles').select('id,full_name,role,is_active').order('full_name').then(({ data, error: queryError }) => {
+      if (!active) return;
+      if (queryError) setMessage(queryError.message);
+      else setUsers((data ?? []) as UserItem[]);
+      setUsersLoading(false);
+    });
+    return () => { active = false; };
+  }, [tab, isAdmin]);
   const items: MasterItem[] = tab === 'Departemen'
     ? departments.map(item => ({ id: item.id, name: item.name, detail: 'Unit kerja', sla: null }))
     : tab === 'Jenis Dokumen'
       ? documentTypes.map(item => ({ id: item.id, name: item.name, detail: 'SLA default', sla: item.sla }))
-      : reviewers.map(item => ({ id: item.id, name: item.name, detail: 'Reviewer aktif', sla: null }));
+      : tab === 'Reviewer' ? reviewers.map(item => ({ id: item.id, name: item.name, detail: 'Reviewer aktif', sla: null }))
+        : users.map(item => ({ id: item.id, name: item.full_name, detail: `${roleLabels[item.role] || item.role}${item.is_active ? '' : ' · Nonaktif'}`, sla: null }));
 
   const cancelEdit = () => { setEditingId(''); setEditName(''); setEditSla(7); };
 
@@ -50,7 +83,7 @@ export default function MasterData() {
         : await client.from('document_types').insert({ name: name.trim(), default_sla_days: sla });
       errorMessage = result.error?.message;
       if (!errorMessage) { setName(''); setMessage(`${tab} berhasil ditambahkan.`); }
-    } else {
+    } else if (tab === 'Reviewer') {
       if (!reviewerId) { setBusy(false); return; }
       const result = await client.from('reviewers').insert({ id: reviewerId });
       errorMessage = result.error?.message;
@@ -70,6 +103,7 @@ export default function MasterData() {
     const client = getSupabaseBrowserClient();
     if (!client) return;
     setBusy(true); setMessage('');
+    if (tab === 'Pengguna') return;
     const table = tab === 'Departemen' ? 'departments' : tab === 'Jenis Dokumen' ? 'document_types' : 'reviewers';
     const { error: updateError } = await client.from(table).update({ is_active: false }).eq('id', id);
     setBusy(false);
@@ -80,11 +114,11 @@ export default function MasterData() {
   const changeTab = (item: Tab) => { setTab(item); cancelEdit(); setMessage(''); setName(''); setReviewerId(''); };
 
   return <>
-    <PageHeading eyebrow="PENGATURAN WORKSPACE" title="Master Data" description="Kelola departemen, jenis dokumen, SLA default, dan reviewer." />
+    <PageHeading eyebrow="PENGATURAN WORKSPACE" title="Master Data" description="Kelola data workspace dan pengguna." />
     <section className="panel master-panel">
-      <div className="master-tabs">{(['Departemen', 'Jenis Dokumen', 'Reviewer'] as Tab[]).map(item => <button onClick={() => changeTab(item)} className={tab === item ? 'current' : ''} key={item}>{item}</button>)}</div>
+      <div className="master-tabs">{(['Departemen', 'Jenis Dokumen', 'Reviewer', ...(isAdmin ? ['Pengguna' as const] : [])] as Tab[]).map(item => <button onClick={() => changeTab(item)} className={tab === item ? 'current' : ''} key={item}>{item}</button>)}</div>
       <div className="master-toolbar"><div><b>{tab}</b><small>{items.length} data aktif</small></div>
-        <form onSubmit={save}>
+        {tab !== 'Pengguna' && <form onSubmit={save}>
           {editingId ? <>
             <input required value={editName} onChange={event => setEditName(event.target.value)} aria-label={`Nama ${tab}`} />
             {tab === 'Jenis Dokumen' && <label className="master-sla-input">SLA <input type="number" min="1" required value={editSla} onChange={event => setEditSla(Number(event.target.value))} aria-label="SLA default dalam hari" /> hari</label>}
@@ -101,7 +135,7 @@ export default function MasterData() {
             {tab === 'Jenis Dokumen' && <label className="master-sla-input">SLA <input type="number" min="1" required value={sla} onChange={event => setSla(Number(event.target.value))} aria-label="SLA default dalam hari" /> hari</label>}
             <button className="button primary" disabled={busy}>＋ Tambah</button>
           </>}
-        </form>
+        </form>}
       </div>
       {tab === 'Reviewer' && !editingId && <p className="muted-copy">Reviewer ditambahkan dari akun aktif yang rolenya sudah disetel sebagai reviewer di profil pengguna.</p>}
       {message && <div className="inline-message" role="status">{message}</div>}
@@ -110,10 +144,9 @@ export default function MasterData() {
         <span className="master-symbol">{tab === 'Departemen' ? '▦' : tab === 'Jenis Dokumen' ? '▤' : '♙'}</span>
         <div><b>{item.name}</b><small>{item.detail}</small></div>
         {item.sla !== null && <span className="master-sla-value">{item.sla} hari</span>}
-        <button className="row-more" disabled={busy} onClick={() => startEdit(item)} aria-label={`Edit ${item.name}`}>Edit</button>
-        <button className="row-more master-delete" disabled={busy} onClick={() => void remove(item.id)} aria-label={`Hapus ${item.name}`}>Hapus</button>
+        {tab !== 'Pengguna' && <><button className="row-more" disabled={busy} onClick={() => startEdit(item)} aria-label={`Edit ${item.name}`}>Edit</button><button className="row-more master-delete" disabled={busy} onClick={() => void remove(item.id)} aria-label={`Hapus ${item.name}`}>Hapus</button></>}
       </div>) : <div className="empty-state">{tab === 'Reviewer' && availableReviewers.length === 0 ? 'Belum ada akun reviewer yang tersedia.' : 'Belum ada data aktif.'}</div>}
-      <p className="muted-copy">Hapus akan menonaktifkan data agar tetap aman untuk riwayat dokumen yang sudah ada.</p>
+      {tab !== 'Pengguna' && <p className="muted-copy">Hapus akan menonaktifkan data agar tetap aman untuk riwayat dokumen yang sudah ada.</p>}
     </section>
   </>;
 }
