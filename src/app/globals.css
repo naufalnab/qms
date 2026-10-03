@@ -8,6 +8,21 @@
 .master-toolbar form{align-items:center;flex-wrap:wrap}.master-toolbar form select{height:34px;min-width:185px;padding:0 9px;border:1px solid #e5e8ee;border-radius:6px;background:#fff;color:#384458;font-size:10px}.master-row .row-more{border:1px solid #e5e8ee;border-radius:6px;padding:6px 9px;background:#fff;color:#566174;font-size:10px}.master-row .row-more:hover{border-color:#b6c1d4}.master-row .master-delete{color:#b84d54}.master-row .master-delete:hover{border-color:#e4b6b9;background:#fff8f8}.master-sla-value{color:#778296;font-size:10px;white-space:nowrap}.master-toolbar .master-sla-input{white-space:nowrap}
 @media(max-width:760px){.master-toolbar form{gap:6px}.master-toolbar form input,.master-toolbar form select{flex:1;min-width:130px}.master-row .row-more{padding:6px 7px;font-size:9px}}
 
+.detail-edit-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px}
+.metadata-edit-form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:13px 18px}
+.metadata-edit-field{display:grid;align-content:start;gap:6px;color:#7e8796;font-size:11px;font-weight:600}
+.metadata-edit-field input,.metadata-edit-field select,.metadata-edit-field textarea{width:100%;min-width:0;border:1px solid #e3e7ee;border-radius:7px;background:#fff;color:#384458;padding:9px 11px;outline:none;font-size:13px}
+.metadata-edit-field input,.metadata-edit-field select{height:42px}
+.metadata-edit-field textarea{resize:vertical;min-height:76px}
+.metadata-edit-field :focus{border-color:#9ab0ff;box-shadow:0 0 0 2px #315fe815}
+.metadata-edit-wide{grid-column:1/-1}
+.metadata-edit-sla{grid-column:1/-1;padding:12px 14px;border-radius:8px;background:#f7f8fb;color:#748093;font-size:11px}
+.metadata-edit-sla b{color:#334057}
+.metadata-edit-form>.inline-message{grid-column:1/-1}
+.metadata-edit-form .metadata-edit-actions{grid-column:1/-1;justify-content:flex-end}
+@media(min-width:1201px){.metadata-edit-form{gap:16px 22px}.metadata-edit-field{font-size:12px}.metadata-edit-field input,.metadata-edit-field select,.metadata-edit-field textarea{font-size:14px}.metadata-edit-field input,.metadata-edit-field select{height:46px}.metadata-edit-sla{padding:14px 16px;font-size:12px}}
+@media(max-width:760px){.detail-edit-actions{gap:6px}.metadata-edit-form{grid-template-columns:1fr;gap:12px}.metadata-edit-wide,.metadata-edit-sla,.metadata-edit-form>.inline-message,.metadata-edit-form .metadata-edit-actions{grid-column:auto}.metadata-edit-form .metadata-edit-actions{display:flex}.metadata-edit-field{font-size:10px}.metadata-edit-field input,.metadata-edit-field select,.metadata-edit-field textarea{font-size:13px}}
+
 /* Desktop density tuned for Chrome at 100% zoom. Keep mobile/tablet sizing intact. */
 @media(min-width:1201px){
   .sidebar{width:262px;padding:30px 18px 20px}

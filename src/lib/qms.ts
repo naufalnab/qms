@@ -7,7 +7,7 @@ export type Reviewer = { id: string; name: string };
 export type HistoryEntry = { action: string; note?: string; actor: string; at: string };
 export type Followup = { date: string; result: string; next: string; actor: string };
 export type Submission = {
-  id: string; number: string; requested: string; condition: Condition; department: string; type: string; docNo: string; title: string; revision: string; reason: string; pic: string; reviewer: string; priority: Priority; sla: number; due: string; status: Status; approval?: string; closed?: string; remarks: string; history: HistoryEntry[]; followups: Followup[];
+  id: string; number: string; requested: string; condition: Condition; department: string; type: string; docNo: string; title: string; revision: string; reason: string; pic: string; reviewer: string; priority: Priority; sla: number; due: string; status: Status; approval?: string; closed?: string; remarks: string; history: HistoryEntry[]; followups: Followup[]; createdBy?: string;
 };
 
 export const departments: Department[] = ['QMS','QC','Production','Warehouse','Purchasing NRM','HRM','Maintenance','Finance','QA','PPIC','RND','Purchasing RM','EXIM','Marketing','Spec','General Affair','House Keeping','Cold Storage','LAB','WHS','HSE','ENG'].map((name, i) => ({ id: String(i + 1), name }));

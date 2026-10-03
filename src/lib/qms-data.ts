@@ -44,7 +44,7 @@ export async function loadSubmissions(client: SupabaseClient): Promise<Submissio
     department: departmentMap.get(row.department_id) || '—', type: typeMap.get(row.document_type_id) || '—',
     docNo: row.document_number, title: row.document_title, revision: row.revision, reason: row.change_reason,
     pic: row.requestor_name, reviewer: row.reviewer_id ? profileMap.get(row.reviewer_id) || '—' : '—',
-    priority: row.priority, sla: row.sla_days, due: row.due_date, status: row.status as Status,
+    priority: row.priority, sla: row.sla_days, due: row.due_date, status: row.status as Status, createdBy: row.created_by,
     approval: dateOnly(row.approval_date), closed: dateOnly(row.closed_at), remarks: row.remarks || '',
     history: historyMap.get(row.id) || [], followups: followupMap.get(row.id) || [],
   }));
