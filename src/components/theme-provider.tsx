@@ -8,7 +8,13 @@ const THEME_STORAGE_KEY = 'qms-theme';
 let currentTheme: ThemePreference = 'system';
 const themeListeners = new Set<() => void>();
 const subscribeToTheme = (listener: () => void) => { themeListeners.add(listener); return () => themeListeners.delete(listener); };
-const getThemeSnapshot = () => currentTheme;
+const getThemeSnapshot = () => {
+  if (typeof document !== 'undefined') {
+    const domPreference = document.documentElement.dataset.theme;
+    if (isThemePreference(domPreference)) return domPreference;
+  }
+  return currentTheme;
+};
 const getServerThemeSnapshot = (): ThemePreference => 'system';
 
 function publishTheme(theme: ThemePreference) {
@@ -30,7 +36,7 @@ type ThemeContextValue = {
 
 const ThemeContext = createContext<ThemeContextValue>({ theme: 'system', setTheme: () => {} });
 
-function isThemePreference(value: string | null): value is ThemePreference {
+function isThemePreference(value: string | null | undefined): value is ThemePreference {
   return value === 'light' || value === 'dark' || value === 'system';
 }
 
@@ -67,13 +73,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setTheme = useCallback((next: ThemePreference) => {
-    publishTheme(next);
     try {
       window.localStorage.setItem(THEME_STORAGE_KEY, next);
     } catch {
       // Keep the current tab usable when storage is unavailable.
     }
     applyTheme(next);
+    publishTheme(next);
   }, []);
 
   return <ThemeContext.Provider value={{ theme, setTheme }}>{children}</ThemeContext.Provider>;

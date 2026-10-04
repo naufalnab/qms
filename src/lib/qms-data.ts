@@ -1,5 +1,5 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { departments as demoDepartments, documentTypes as demoTypes, statusLabels, type Submission, type Status, type Department, type DocumentType, type Reviewer } from '@/lib/qms';
+import { departments as demoDepartments, documentTypes as demoTypes, statusLabels, type Submission, type Status, type Department, type DocumentType, type Reviewer, type ReviewerOption } from '@/lib/qms';
 
 const dateOnly = (value: string | null | undefined) => {
   if (!value) return undefined;
@@ -54,18 +54,23 @@ export async function loadMasterData(client: SupabaseClient) {
   const [departmentRows, typeRows, reviewerRows, profiles] = await Promise.all([
     client.from('departments').select('id,name').eq('is_active', true).order('name'),
     client.from('document_types').select('id,name,default_sla_days').eq('is_active', true).order('name'),
-    client.from('reviewers').select('id').eq('is_active', true),
+    client.from('reviewers').select('id,is_active'),
     client.from('profiles').select('id,full_name,role,is_active'),
   ]);
   for (const result of [departmentRows, typeRows, reviewerRows, profiles]) if (result.error) throw result.error;
   const names = new Map((profiles.data ?? []).map(profile => [profile.id, profile.full_name]));
-  const activeReviewerIds = new Set((reviewerRows.data ?? []).map(row => row.id));
+  const reviewerById = new Map((reviewerRows.data ?? []).map(row => [row.id, row]));
+  const activeReviewerIds = new Set((reviewerRows.data ?? []).filter(row => row.is_active).map(row => row.id));
   const activeReviewerProfiles = (profiles.data ?? []).filter(profile => (profile.role === 'qmsr' || profile.role === 'admin') && profile.is_active);
   return {
     departments: (departmentRows.data ?? []) as Department[],
     documentTypes: (typeRows.data ?? []).map(row => ({ id: row.id, name: row.name, sla: row.default_sla_days })) as DocumentType[],
-    reviewers: (reviewerRows.data ?? []).map(row => ({ id: row.id, name: names.get(row.id) })).filter((reviewer): reviewer is Reviewer => Boolean(reviewer.name)),
-    availableReviewers: activeReviewerProfiles.filter(profile => !activeReviewerIds.has(profile.id)).map(profile => ({ id: profile.id, name: profile.full_name })) as Reviewer[],
+    reviewers: (reviewerRows.data ?? []).filter(row => row.is_active).map(row => ({ id: row.id, name: names.get(row.id) })).filter((reviewer): reviewer is Reviewer => Boolean(reviewer.name)),
+    availableReviewers: activeReviewerProfiles.filter(profile => !activeReviewerIds.has(profile.id)).map(profile => ({
+      id: profile.id,
+      name: profile.full_name,
+      inactive: reviewerById.has(profile.id),
+    })) as ReviewerOption[],
   };
 }
 

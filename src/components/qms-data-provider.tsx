@@ -3,10 +3,10 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { demoSubmissions, type Submission } from '@/lib/qms';
 import { demoMasterData, loadMasterData, loadSubmissions } from '@/lib/qms-data';
-import type { Department, DocumentType, Reviewer } from '@/lib/qms';
+import type { Department, DocumentType, Reviewer, ReviewerOption } from '@/lib/qms';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
 
-type QmsData = { submissions: Submission[]; departments: Department[]; documentTypes: DocumentType[]; reviewers: Reviewer[]; availableReviewers: Reviewer[]; loading: boolean; error: string; reload: () => Promise<void> };
+type QmsData = { submissions: Submission[]; departments: Department[]; documentTypes: DocumentType[]; reviewers: Reviewer[]; availableReviewers: ReviewerOption[]; loading: boolean; error: string; reload: () => Promise<void> };
 const QmsDataContext = createContext<QmsData>({ submissions: demoSubmissions, ...demoMasterData, loading: false, error: '', reload: async () => {} });
 
 export function QmsDataProvider({ children }: { children: React.ReactNode }) {
