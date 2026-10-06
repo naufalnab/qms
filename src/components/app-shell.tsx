@@ -62,21 +62,31 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     router.replace('/login');
   };
   const name = profile?.full_name || (isDemoMode ? 'Rosa Amelia' : identity?.email || 'Pengguna QMS');
-  const role = isDemoMode ? 'Administrator' : roleLabels[profile?.role || ''] || 'Pengguna';
+  const roleKey = isDemoMode ? 'admin' : profile?.role || '';
+  const role = roleLabels[roleKey] || 'Pengguna';
+  const visibleLinks = roleKey === 'admin'
+    ? links
+    : roleKey === 'qms'
+      ? links.filter(([href]) => ['/', '/documents', '/actions', '/history'].includes(href))
+      : ['qmsr', 'qms_section_head'].includes(roleKey)
+        ? links.filter(([href]) => ['/', '/documents', '/actions', '/history', '/analytics'].includes(href))
+        : links.filter(([href]) => href === '/');
+  const canCreateSubmission = roleKey === 'admin' || roleKey === 'qms';
   const activeNav = links.find(([href]) => href === '/' ? path === '/' : path.startsWith(href));
+  const bottomLinks = [['/','⌂','Home'], ['/documents','▤','Dokumen'], ...(canCreateSubmission ? [['/new','+','Buat']] : []), ['/actions','◉','Tindakan']];
 
   return <div className="app-frame">
     <aside className="sidebar">
       <Link href="/" className="brand"><span className="brand-mark">q</span><span><b>qms<span className="brand-dot">.</span></b><small>DOCUMENT MONITOR</small></span></Link>
       <div className="workspace-label">WORKSPACE</div>
-      <nav>{links.map(([href, icon, label]) => <Link key={href} href={href} className={`nav-item ${activeNav?.[0] === href ? 'active' : ''}`}><span className="nav-icon">{icon}</span>{label}{label === 'Butuh Tindakan' && actionCount !== null && <span className="nav-count">{actionCount}</span>}</Link>)}</nav>
+      <nav>{visibleLinks.map(([href, icon, label]) => <Link key={href} href={href} className={`nav-item ${activeNav?.[0] === href ? 'active' : ''}`}><span className="nav-icon">{icon}</span>{label}{label === 'Butuh Tindakan' && actionCount !== null && <span className="nav-count">{actionCount}</span>}</Link>)}</nav>
       <div className="sidebar-account"><ThemeMenu/><div className="sidebar-bottom"><div className="avatar">{name.split(' ').map(part => part[0]).slice(0,2).join('').toUpperCase()}</div><div className="user-copy"><b>{name}</b><small>{role}</small></div><button className="sign-out" onClick={signOut} aria-label="Keluar">↪</button></div></div>
     </aside>
     <main className="main-area">
       <header className="mobile-header"><button className="icon-button" onClick={() => setOpen(!open)} aria-label="Buka menu">☰</button><Link href="/" className="brand compact"><span className="brand-mark">q</span><b>qms<span className="brand-dot">.</span></b></Link><button className="avatar small-avatar" onClick={signOut} aria-label="Keluar">{name.split(' ').map(part => part[0]).slice(0,2).join('').toUpperCase()}</button></header>
-      {open && <div className="mobile-menu">{links.map(([href, icon, label]) => <Link key={href} href={href} onClick={() => setOpen(false)}>{icon}　{label}</Link>)}<ThemeMenu mobile/><button onClick={signOut}>↪　Keluar</button></div>}
+      {open && <div className="mobile-menu">{visibleLinks.map(([href, icon, label]) => <Link key={href} href={href} onClick={() => setOpen(false)}>{icon}　{label}</Link>)}<ThemeMenu mobile/><button onClick={signOut}>↪　Keluar</button></div>}
       <QmsDataProvider><div className="page-content">{children}</div></QmsDataProvider>
     </main>
-    <nav className="bottom-nav">{[['/','⌂','Home'],['/documents','▤','Dokumen'],['/new','＋','Buat'],['/actions','◉','Tindakan']].map(([href, icon, label]) => <Link key={href} href={href} className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'selected' : ''}><span>{icon}</span>{label}</Link>)}</nav>
+    <nav className="bottom-nav">{bottomLinks.map(([href, icon, label]) => <Link key={href} href={href} className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'selected' : ''}><span>{icon}</span>{label}</Link>)}</nav>
   </div>;
 }

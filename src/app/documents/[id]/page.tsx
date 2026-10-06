@@ -1,8 +1,8 @@
 'use client';
 
 import Link from 'next/link';
-import { use, useEffect, useState } from 'react';
-import { calculateAging, calculateDueDate, canTransitionStatus, demoSubmissions, formatDate, getActionRequired, priorityLabels, statusLabels, todayISO, type Condition, type Priority, type Status, type Submission } from '@/lib/qms';
+import { use, useState } from 'react';
+import { calculateAging, calculateDueDate, canEditSubmission, canPerformWorkflowAction, canReviewDocument, formatDate, getActionRequired, priorityLabels, statusLabels, todayISO, type Condition, type Priority, type Status, type Submission } from '@/lib/qms';
 import { PageHeading, PriorityBadge, SlaBadge, StatusBadge } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
@@ -12,11 +12,9 @@ type EditValues = Pick<Submission, 'title' | 'condition' | 'department' | 'type'
 
 export default function DocumentDetail({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
-  const { submissions, departments, documentTypes, reviewers, loading, error, reload } = useQmsData();
-  const doc = submissions.find(item => item.id === id) || demoSubmissions.find(item => item.id === id);
+  const { submissions, departments, documentTypes, reviewers, user, loading, error, reload } = useQmsData();
+  const doc = submissions.find(item => item.id === id);
   const [statusOverride, setStatusOverride] = useState<Status | null>(null);
-  const [role, setRole] = useState(isDemoMode ? 'admin' : 'qms');
-  const [userId, setUserId] = useState('');
   const [editing, setEditing] = useState(false);
   const [editValues, setEditValues] = useState<EditValues | null>(null);
   const [editMessage, setEditMessage] = useState('');
@@ -29,27 +27,15 @@ export default function DocumentDetail({ params }: { params: Promise<{ id: strin
   const [nextAction, setNextAction] = useState('');
 
   const status = statusOverride ?? doc?.status ?? 'draft';
-  useEffect(() => {
-    if (isDemoMode) return;
-    let active = true;
-    const client = getSupabaseBrowserClient();
-    void client?.auth.getUser().then(async (result: { data: { user: { id: string } | null } }) => {
-      const data = result.data;
-      if (!data.user) return;
-      const { data: profile } = await client.from('profiles').select('role').eq('id', data.user.id).maybeSingle();
-      if (active) setUserId(data.user.id);
-      if (active && profile?.role) setRole(profile.role);
-    });
-    return () => { active = false; };
-  }, []);
-
   if (loading) return <div className="panel data-loading">Memuat detail dokumen…</div>;
   if (error) return <div className="panel data-error" role="alert">{error}</div>;
   if (!doc) return <div className="panel">Dokumen tidak ditemukan. <Link className="text-link" href="/documents">Kembali ke dokumen</Link></div>;
 
   const currentDocument = { ...doc, status };
-  const canEdit = role === 'admin' || (role === 'qms' && doc.createdBy === userId && ['draft', 'need_revision'].includes(status));
-  const allowed = transitionActions.filter(next => canTransitionStatus(status, next, role));
+  const canEdit = canEditSubmission(user, currentDocument);
+  const canReview = canReviewDocument(user, currentDocument);
+  const allowed = transitionActions.filter(next => canPerformWorkflowAction(user, currentDocument, next));
+  const canAddFollowUp = user?.role === 'admin' || (user?.role === 'qms' && user.id === doc.createdBy) || canReview;
   const startEditing = () => {
     setEditValues({ title: doc.title, condition: doc.condition, department: doc.department, type: doc.type, docNo: doc.docNo, revision: doc.revision, pic: doc.pic, reviewerId: reviewers.find(item => item.name === doc.reviewer)?.id || '', priority: doc.priority, requested: doc.requested, reason: doc.reason, remarks: doc.remarks });
     setEditMessage('');
@@ -89,7 +75,7 @@ export default function DocumentDetail({ params }: { params: Promise<{ id: strin
     setEditing(false); setEditValues(null); setEditMessage('Perubahan berhasil disimpan.'); setBusy(false);
   };
   const apply = async (next: Status) => {
-    if (!canTransitionStatus(status, next, role)) { setMessage('Aksi ini tidak tersedia untuk role Anda.'); return; }
+    if (!canPerformWorkflowAction(user, currentDocument, next)) { setMessage('Aksi ini tidak tersedia untuk role Anda.'); return; }
     if ((next === 'need_revision' || next === 'rejected') && !note.trim()) { setMessage('Catatan wajib diisi untuk revisi atau penolakan.'); return; }
     setBusy(true); setMessage('');
     if (isDemoMode) {
@@ -116,8 +102,8 @@ export default function DocumentDetail({ params }: { params: Promise<{ id: strin
       setMessage('Follow-up berhasil disimpan.');
     } else {
       const client = getSupabaseBrowserClient();
-      const { data: { user } } = await client!.auth.getUser();
-      const { error: followError } = await client!.from('document_followups').insert({ document_id: id, follow_up_date: followDate, follow_up_result: followResult, next_action: nextAction, created_by: user!.id });
+      if (!user) { setMessage('Sesi login tidak tersedia.'); setBusy(false); return; }
+      const { error: followError } = await client!.from('document_followups').insert({ document_id: id, follow_up_date: followDate, follow_up_result: followResult, next_action: nextAction, created_by: user.id });
       if (followError) setMessage(followError.message);
       else { setMessage('Follow-up berhasil disimpan.'); await reload(); }
     }
@@ -157,19 +143,19 @@ export default function DocumentDetail({ params }: { params: Promise<{ id: strin
         <section className="panel detail-panel"><div className="section-heading"><div><div className="eyebrow">PEMANTAUAN TENGGAT</div><h2>SLA Dokumen</h2></div><SlaBadge doc={currentDocument} /></div>
           <div className="sla-detail-grid">{[['SLA',`${doc.sla} hari kalender`],['Tanggal jatuh tempo',formatDate(doc.due)],['Lama proses',`${calculateAging(currentDocument)} hari`],['Tindakan berikutnya',getActionRequired(currentDocument)]].map(([label,value]) => <div className="metadata-item" key={label}><small>{label}</small><b>{value}</b></div>)}</div>
         </section>
-        <section className="panel detail-panel"><div className="section-heading"><div><div className="eyebrow">TINDAK LANJUT</div><h2>Follow-Up History</h2></div><button className="button secondary" onClick={() => setShowFollowUp(!showFollowUp)}>＋ Tambah Follow-Up</button></div>
+        <section className="panel detail-panel"><div className="section-heading"><div><div className="eyebrow">TINDAK LANJUT</div><h2>Follow-Up History</h2></div>{canAddFollowUp && <button className="button secondary" onClick={() => setShowFollowUp(!showFollowUp)}>＋ Tambah Follow-Up</button>}</div>
           {showFollowUp && <div className="follow-form"><label>Tanggal Follow-Up<input type="date" value={followDate} onChange={event => setFollowDate(event.target.value)} /></label><label>Hasil Follow-Up<input value={followResult} onChange={event => setFollowResult(event.target.value)} placeholder="Apa hasil tindak lanjut?" /></label><label>Next Action<input value={nextAction} onChange={event => setNextAction(event.target.value)} placeholder="Langkah selanjutnya" /></label><button className="button primary" disabled={busy} onClick={() => void saveFollowUp()}>Simpan Follow-Up</button></div>}
           {doc.followups.length ? doc.followups.map((followUp,index) => <div className="follow-row" key={`${doc.id}-follow-${index}`}><b>{formatDate(followUp.date)} · {followUp.actor}</b><p>{followUp.result}</p><small>Langkah berikutnya: {followUp.next}</small></div>) : <p className="muted-copy">Belum ada follow-up. Catat hasil komunikasi agar riwayat tetap terdokumentasi.</p>}
         </section>
       </div>
       <aside className="detail-aside">
-        <section className="panel workflow-panel"><div className="eyebrow">WORKFLOW</div><h2>Perbarui Status</h2><p>Pilih tindakan sesuai hasil proses dokumen.</p>
-          {(status === 'under_review' || status === 'qmsr_review') && <label className="workflow-note">Catatan {status === 'under_review' ? 'QMS Section Head' : 'QMSR'}<textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Catatan wajib jika meminta revisi atau menolak." /></label>}
+        <section className="panel workflow-panel"><div className="eyebrow">WORKFLOW</div><h2>{user?.role === 'qms' ? 'Tindakan Pengajuan' : user?.role === 'qmsr' ? 'Review QMSR' : user?.role === 'qms_section_head' ? 'Review QMS Section Head' : 'Perbarui Status'}</h2><p>{user?.role === 'qms' ? 'Revisi dan ajukan kembali dokumen Anda saat diminta.' : 'Tindakan mengikuti tahap workflow yang sedang berjalan.'}</p>
+          {canReview && (status === 'under_review' || status === 'qmsr_review') && <label className="workflow-note">Catatan {status === 'under_review' ? 'QMS Section Head' : 'QMSR'}<textarea value={note} onChange={event => setNote(event.target.value)} placeholder="Catatan wajib jika meminta revisi atau menolak." /></label>}
           {message && <div className="inline-message" role="status">{message}</div>}
           {allowed.map(next => <button key={next} disabled={busy} className={`workflow-button ${next === 'approved' ? 'approve' : ''} ${next === 'rejected' ? 'reject' : ''}`} onClick={() => void apply(next)}><span>{next === 'need_revision' ? '↻' : next === 'approved' ? '✓' : next === 'rejected' ? '×' : '→'}</span>{statusLabels[next]}</button>)}
           {!allowed.length && <div className="terminal-note">Tidak ada tindakan workflow yang tersedia untuk role ini.</div>}
         </section>
-        <section className="panel latest-note"><div className="eyebrow">CATATAN QMSR TERBARU</div><p>{[...doc.history].reverse().find(item => item.note)?.note || 'Belum ada catatan review.'}</p><small>— {doc.reviewer}</small></section>
+        <section className="panel latest-note"><div className="eyebrow">CATATAN REVIEW TERBARU</div><p>{[...doc.history].reverse().find(item => item.note)?.note || 'Belum ada catatan review.'}</p><small>— {doc.reviewer}</small></section>
         <section className="panel timeline-panel"><div className="eyebrow">AUDIT TRAIL</div><h2>Riwayat Dokumen</h2><div className="timeline">{[...doc.history].reverse().map((event,index) => <div className="timeline-entry" key={`${doc.id}-event-${index}`}><span className="timeline-dot" /><div><b>{event.action}</b><small>{formatDate(event.at)} · {event.actor}</small>{event.note && <p>{event.note}</p>}</div></div>)}</div></section>
       </aside>
     </div>

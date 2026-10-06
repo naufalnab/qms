@@ -7,9 +7,46 @@ export type Reviewer = { id: string; name: string };
 export type ReviewerOption = Reviewer & { inactive: boolean };
 export type HistoryEntry = { action: string; note?: string; actor: string; at: string };
 export type Followup = { date: string; result: string; next: string; actor: string };
+export type AppRole = 'admin' | 'qms' | 'qms_section_head' | 'qmsr';
+export type AppUser = { id: string; fullName: string; role: AppRole };
 export type Submission = {
-  id: string; number: string; requested: string; condition: Condition; department: string; type: string; docNo: string; title: string; revision: string; reason: string; pic: string; reviewer: string; priority: Priority; sla: number; due: string; status: Status; approval?: string; closed?: string; remarks: string; history: HistoryEntry[]; followups: Followup[]; createdBy?: string;
+  id: string; number: string; requested: string; condition: Condition; department: string; type: string; docNo: string; title: string; revision: string; reason: string; pic: string; reviewer: string; reviewerId?: string; priority: Priority; sla: number; due: string; status: Status; approval?: string; closed?: string; remarks: string; history: HistoryEntry[]; followups: Followup[]; createdBy?: string;
 };
+
+export function canViewDocument(user: AppUser | null, document: Submission) {
+  if (!user) return false;
+  if (user.role === 'admin') return true;
+  if (user.role === 'qms') return document.createdBy === user.id;
+  if (user.role === 'qmsr') return document.reviewerId === user.id;
+  return document.status !== 'draft';
+}
+
+export function canSubmitDocument(user: AppUser | null) {
+  return user?.role === 'admin' || user?.role === 'qms';
+}
+
+export function canManageMasterData(user: AppUser | null) {
+  return user?.role === 'admin';
+}
+
+export function canReviewDocument(user: AppUser | null, document: Submission) {
+  if (!user) return false;
+  if (user.role === 'admin') return !['draft', 'approved', 'rejected', 'closed'].includes(document.status);
+  if (user.role === 'qms_section_head') return ['submitted', 'resubmitted', 'under_review'].includes(document.status);
+  return user.role === 'qmsr' && user.id === document.reviewerId && document.status === 'qmsr_review';
+}
+
+export function canEditSubmission(user: AppUser | null, document: Submission) {
+  return user?.role === 'admin' || (user?.role === 'qms' && user.id === document.createdBy && ['draft', 'need_revision'].includes(document.status));
+}
+
+export function canPerformWorkflowAction(user: AppUser | null, document: Submission, next: Status) {
+  if (!user || !canTransitionStatus(document.status, next, user.role)) return false;
+  if (user.role === 'admin') return true;
+  if (user.role === 'qms') return document.createdBy === user.id;
+  if (user.role === 'qmsr') return user.id === document.reviewerId && document.status === 'qmsr_review';
+  return user.role === 'qms_section_head' && ['submitted', 'resubmitted', 'under_review'].includes(document.status);
+}
 
 export const departments: Department[] = ['QMS','QC','Production','Warehouse','Purchasing NRM','HRM','Maintenance','Finance','QA','PPIC','RND','Purchasing RM','EXIM','Marketing','Spec','General Affair','House Keeping','Cold Storage','LAB','WHS','HSE','ENG'].map((name, i) => ({ id: String(i + 1), name }));
 export const documentTypes: DocumentType[] = [ { id:'form', name:'Form', sla:3 }, { id:'wi', name:'WI', sla:5 }, { id:'sop', name:'SOP', sla:7 }, { id:'policy', name:'Policy', sla:10 }, { id:'external', name:'External Document', sla:5 }, { id:'other', name:'Other', sla:7 } ];
@@ -41,7 +78,7 @@ export const allowedTransitions:Record<Status,Status[]>={draft:['submitted'],sub
 export function canTransitionStatus(from:Status,to:Status,role='admin') {
   if(!allowedTransitions[from].includes(to))return false;
   if(role==='admin')return true;
-  if(role==='qms')return (from==='draft'&&to==='submitted')||(from==='need_revision'&&to==='resubmitted');
+  if(role==='qms')return (from==='draft'&&to==='submitted')||(from==='need_revision'&&to==='resubmitted')||(from==='approved'&&to==='closed');
   if(role==='qms_section_head')return (to==='under_review'&&(from==='submitted'||from==='resubmitted'))||(from==='under_review'&&(to==='qmsr_review'||to==='need_revision'));
   if(role==='qmsr')return from==='qmsr_review'&&(to==='approved'||to==='need_revision'||to==='rejected');
   return false;
