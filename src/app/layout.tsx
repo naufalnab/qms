@@ -9,5 +9,21 @@ export const metadata: Metadata = { title: 'QMS Monitor — Pengelolaan Dokumen'
 export const viewport: Viewport = { width: 'device-width', initialScale: 1, viewportFit: 'cover', colorScheme: 'light dark' };
 const themeBootstrap = `(function(){var r=document.documentElement;function apply(t){if(t!=='light'&&t!=='dark'&&t!=='system')t='system';r.setAttribute('data-theme',t);var d=t==='dark'||(t==='system'&&matchMedia('(prefers-color-scheme: dark)').matches);r.setAttribute('data-color-scheme',d?'dark':'light');var m=document.getElementById('qms-theme-color');if(m)m.setAttribute('content',d?'#0B1220':'#F5F7FA')}try{apply(localStorage.getItem('qms-theme')||'system')}catch(e){apply('system')}var media=matchMedia('(prefers-color-scheme: dark)');media.addEventListener('change',function(){if(r.getAttribute('data-theme')==='system')apply('system')})})()`;
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
-  return <html lang="id" data-theme="system" suppressHydrationWarning><head><meta id="qms-theme-color" name="theme-color" content="#F5F7FA"/><script dangerouslySetInnerHTML={{ __html: themeBootstrap }}/></head><body><ThemeProvider><ServiceWorker/><AppShell>{children}</AppShell></ThemeProvider></body></html>;
+  return (
+    <html lang="id" data-theme="system" suppressHydrationWarning>
+      <head>
+        <meta id="qms-theme-color" name="theme-color" content="#F5F7FA"/>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap" />
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrap }}/>
+      </head>
+      <body>
+        <ThemeProvider>
+          <ServiceWorker/>
+          <AppShell>{children}</AppShell>
+        </ThemeProvider>
+      </body>
+    </html>
+  );
 }

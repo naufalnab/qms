@@ -95,3 +95,4 @@ describe('Security & Access Control Enforcement', () => {
     expect(escaped.startsWith("'=")).toBe(true);
   });
 });
+
