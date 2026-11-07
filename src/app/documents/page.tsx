@@ -2,16 +2,26 @@
 
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { Suspense, useEffect, useMemo, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import * as XLSX from 'xlsx';
-import { formatDate, getActionRequired, getSlaStatus, priorityLabels, statusLabels, statusOrder, currentMonthKey } from '@/lib/qms';
-import { PageHeading, PriorityBadge, SlaBadge, StatusBadge } from '@/components/ui';
+import {
+  canViewDocument,
+  formatDate,
+  getDetailedSlaStatus,
+  getSlaStatus,
+  priorityLabels,
+  statusLabels,
+  statusOrder,
+  type Company
+} from '@/lib/qms';
+import { CompanyBadge, PageHeading, PriorityBadge, SlaBadge, StatusBadge } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
+import { GoogleSheetsModal } from '@/components/google-sheets-modal';
 
 function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string; initialSla: string }) {
-  const { submissions, departments, documentTypes, reviewers, loading, error, reload } = useQmsData();
-  const [isAdmin, setIsAdmin] = useState(false);
+  const { submissions, departments, documentTypes, reviewers, user, company, setCompany, loading, error, reload } = useQmsData();
+  const isAdmin = user?.role === 'admin';
   const [deletingId, setDeletingId] = useState('');
   const [actionMessage, setActionMessage] = useState('');
   const [query, setQuery] = useState('');
@@ -19,26 +29,11 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
   const [department, setDepartment] = useState('');
   const [type, setType] = useState('');
   const [sla, setSla] = useState(initialSla);
-  const [condition, setCondition] = useState('');
   const [priority, setPriority] = useState('');
   const [reviewer, setReviewer] = useState('');
   const [pic, setPic] = useState('');
-  const [period, setPeriod] = useState('');
   const [sort, setSort] = useState('due_asc');
-
-  useEffect(() => {
-    if (isDemoMode) return;
-    const client = getSupabaseBrowserClient();
-    if (!client) return;
-    let active = true;
-    void (async () => {
-      const { data: { user } } = await client.auth.getUser();
-      if (!user) return;
-      const { data: profile } = await client.from('profiles').select('role,is_active').eq('id', user.id).maybeSingle();
-      if (active) setIsAdmin(profile?.role === 'admin' && profile.is_active);
-    })();
-    return () => { active = false; };
-  }, []);
+  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
 
   const deleteDocument = async (id: string, title: string) => {
     if (!isAdmin || isDemoMode) return;
@@ -48,80 +43,398 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
     setDeletingId(id);
     setActionMessage('');
     const { error: deleteError } = await client.rpc('archive_document', { p_document_id: id });
-    if (deleteError) setActionMessage(`Dokumen gagal dihapus: ${deleteError.message}`);
-    else setActionMessage(`Pengajuan “${title}” berhasil dihapus dari daftar aktif.`);
+    if (deleteError) {
+      setActionMessage(`Dokumen gagal dihapus: ${deleteError.message}`);
+    } else {
+      setActionMessage(`Pengajuan “${title}” berhasil dihapus dari daftar aktif.`);
+      await reload();
+    }
     setDeletingId('');
-    if (!deleteError) await reload();
   };
 
-  const rows = useMemo(() => submissions
-    .filter(doc => `${doc.number} ${doc.docNo} ${doc.title} ${doc.pic} ${doc.reviewer}`.toLowerCase().includes(query.toLowerCase())
-      && (!status || doc.status === status)
-      && (!department || doc.department === department)
-      && (!type || doc.type === type)
-      && (!sla || getSlaStatus(doc) === sla)
-      && (!condition || doc.condition === condition)
-      && (!priority || doc.priority === priority)
-      && (!reviewer || doc.reviewer === reviewer)
-      && (!pic || doc.pic === pic)
-      && (!period || (period === 'all' ? true : doc.requested.startsWith(period))))
-    .sort((a, b) => sort === 'newest' ? b.requested.localeCompare(a.requested)
-      : sort === 'oldest' ? a.requested.localeCompare(b.requested)
-        : sort === 'priority' ? ['critical','high','medium','low'].indexOf(a.priority)-['critical','high','medium','low'].indexOf(b.priority)
-          : sort === 'aging' ? new Date(a.requested).getTime()-new Date(b.requested).getTime() : a.due.localeCompare(b.due)),
-    [submissions, query, status, department, type, sla, condition, priority, reviewer, pic, period, sort]);
+  // Securely filter documents visible to this user
+  const visible = useMemo(() => {
+    return submissions.filter(doc => canViewDocument(user, doc));
+  }, [submissions, user]);
 
+  const rows = useMemo(() => {
+    return visible
+      .filter(doc => {
+        const matchesQuery = `${doc.number} ${doc.docNo} ${doc.title} ${doc.pic} ${doc.reviewer} ${doc.company}`
+          .toLowerCase()
+          .includes(query.toLowerCase());
+        const matchesCompany = company === 'all' || doc.company === company;
+        const matchesStatus = !status || doc.status === status;
+        const matchesDept = !department || doc.department === department;
+        const matchesType = !type || doc.type === type;
+        const matchesSla = !sla || getSlaStatus(doc) === sla;
+        const matchesPrio = !priority || doc.priority === priority;
+        const matchesRev = !reviewer || doc.reviewer === reviewer;
+        const matchesPic = !pic || doc.pic === pic;
+
+        return (
+          matchesQuery &&
+          matchesCompany &&
+          matchesStatus &&
+          matchesDept &&
+          matchesType &&
+          matchesSla &&
+          matchesPrio &&
+          matchesRev &&
+          matchesPic
+        );
+      })
+      .sort((a, b) => {
+        if (sort === 'newest') return b.requested.localeCompare(a.requested);
+        if (sort === 'oldest') return a.requested.localeCompare(b.requested);
+        if (sort === 'priority') {
+          const rank = ['critical', 'high', 'medium', 'low'];
+          return rank.indexOf(a.priority) - rank.indexOf(b.priority);
+        }
+        if (sort === 'aging') {
+          return new Date(a.requested).getTime() - new Date(b.requested).getTime();
+        }
+        return a.due.localeCompare(b.due);
+      });
+  }, [visible, query, company, status, department, type, sla, priority, reviewer, pic, sort]);
+
+  // Export to Excel XLSX
   const exportXlsx = () => {
-    const records = rows.map((doc, index) => ({
-      'No.': index + 1, 'Submission Number': doc.number, 'Request Date': formatDate(doc.requested),
-      'Document Condition': doc.condition === 'new' ? 'Baru' : 'Lama', Department: doc.department,
-      'Document Type': doc.type, 'Document No.': doc.docNo, 'Document Title': doc.title,
-      Revision: doc.revision, 'Change Reason': doc.reason, 'PIC / Requestor': doc.pic,
-      Reviewer: doc.reviewer, Priority: priorityLabels[doc.priority], 'SLA Days': doc.sla,
-      'Due Date': formatDate(doc.due), Status: statusLabels[doc.status],
-      'Approval Date': formatDate(doc.approval), 'Closed Date': formatDate(doc.closed),
-      'Aging Days': Math.max(0, Math.floor((new Date(`${doc.closed || new Date().toISOString().slice(0, 10)}T12:00:00`).getTime() - new Date(`${doc.requested}T12:00:00`).getTime()) / 86400000)),
-      'SLA Status': getSlaStatus(doc), 'Action Required': getActionRequired(doc),
-      'Latest QMSR Note': [...doc.history].reverse().find(event => event.note)?.note || '', Remarks: doc.remarks,
-    }));
+    const records = rows.map((doc, index) => {
+      const slaDetail = getDetailedSlaStatus(doc);
+      return {
+        'No.': index + 1,
+        'Nomor Pengajuan': doc.number,
+        'Tanggal Pengajuan': formatDate(doc.requested),
+        'Perusahaan': doc.company,
+        'Kondisi': doc.condition === 'new' ? 'Baru' : 'Lama',
+        'Departemen': doc.department,
+        'Jenis Dokumen': doc.type,
+        'Nomor Dokumen': doc.docNo,
+        'Judul Dokumen': doc.title,
+        'Revisi': doc.revision,
+        'Alasan Perubahan': doc.reason,
+        'PIC / Requestor': doc.pic,
+        'Reviewer QMSR': doc.reviewer,
+        'Prioritas': priorityLabels[doc.priority],
+        'Target SLA': `${doc.sla} Hari`,
+        'Batas Deadline': formatDate(doc.due),
+        'Status Alur': statusLabels[doc.status],
+        'Diagnostik SLA': slaDetail.badgeLabel,
+        'Tanggal Persetujuan': formatDate(doc.approval),
+        'Tanggal Ditutup': formatDate(doc.closed),
+        'Catatan Reviewer': [...doc.history].reverse().find(e => e.note)?.note || '—',
+      };
+    });
+
+    const worksheet = XLSX.utils.json_to_sheet(records);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(records), 'Document Database');
-    XLSX.writeFile(workbook, `QMS_Document_Monitoring_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Dokumen Mutu');
+    const companySuffix = company === 'all' ? 'Gabungan' : company.replace(/[^a-zA-Z0-9]/g, '_');
+    XLSX.writeFile(workbook, `QMS_Dokumen_${companySuffix}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
-  return <>
-    <PageHeading eyebrow="DATABASE DOKUMEN" title="Semua Dokumen" description="Cari dan kelola seluruh pengajuan dokumen QMS."
-      action={<div className="heading-actions"><button className="button secondary export-button" onClick={exportXlsx}>↓ Export Excel</button><Link href="/new" className="button primary">＋ Pengajuan Baru</Link></div>} />
-    <div className="panel document-panel">
-      <div className="documents-toolbar">
-        <label className="search-box"><span>⌕</span><input placeholder="Cari nomor dokumen, judul, PIC..." value={query} onChange={event => setQuery(event.target.value)} /><kbd>⌘ K</kbd></label>
-        <select aria-label="Filter status" value={status} onChange={event => setStatus(event.target.value)}><option value="">Semua Status</option>{statusOrder.map(item => <option value={item} key={item}>{statusLabels[item]}</option>)}</select>
-        <select aria-label="Filter departemen" value={department} onChange={event => setDepartment(event.target.value)}><option value="">Semua Departemen</option>{departments.map(item => <option key={item.id}>{item.name}</option>)}</select>
-        <select aria-label="Filter jenis dokumen" value={type} onChange={event => setType(event.target.value)}><option value="">Semua Jenis</option>{documentTypes.map(item => <option key={item.id}>{item.name}</option>)}</select>
-        <select aria-label="Filter SLA" value={sla} onChange={event => setSla(event.target.value)}><option value="">Semua SLA</option><option value="on_time">Tepat Waktu</option><option value="due_soon">Mendekati Deadline</option><option value="overdue">Terlambat</option><option value="completed">Selesai</option></select>
-        <select aria-label="Filter periode" value={period} onChange={event => setPeriod(event.target.value)}><option value="">Semua Periode</option><option value={currentMonthKey()}>Bulan Ini</option></select>
-        <select aria-label="Filter kondisi dokumen" value={condition} onChange={event => setCondition(event.target.value)}><option value="">Baru / Lama</option><option value="new">Baru</option><option value="existing">Lama</option></select>
-        <select aria-label="Filter prioritas" value={priority} onChange={event => setPriority(event.target.value)}><option value="">Semua Prioritas</option><option value="low">Rendah</option><option value="medium">Sedang</option><option value="high">Tinggi</option><option value="critical">Kritis</option></select>
-        <select aria-label="Filter reviewer" value={reviewer} onChange={event => setReviewer(event.target.value)}><option value="">Semua Reviewer</option>{reviewers.map(item => <option key={item.id}>{item.name}</option>)}</select>
-        <select aria-label="Filter PIC" value={pic} onChange={event => setPic(event.target.value)}><option value="">Semua PIC</option>{Array.from(new Set(submissions.map(item => item.pic))).map(name => <option key={name}>{name}</option>)}</select>
-        <select aria-label="Urutkan dokumen" value={sort} onChange={event => setSort(event.target.value)}><option value="due_asc">Deadline terdekat</option><option value="newest">Terbaru</option><option value="oldest">Terlama</option><option value="priority">Prioritas</option><option value="aging">Aging</option></select>
+  // Export to CSV
+  const exportCsv = () => {
+    const headers = [
+      'No', 'Nomor Pengajuan', 'Tanggal Pengajuan', 'Perusahaan', 'Kondisi', 'Departemen',
+      'Jenis Dokumen', 'Nomor Dokumen', 'Judul Dokumen', 'Revisi', 'PIC', 'Reviewer',
+      'Prioritas', 'SLA Hari', 'Deadline', 'Status', 'Diagnostik SLA', 'Approval', 'Closed'
+    ];
+    const csvLines = [headers.map(h => `"${h}"`).join(',')];
+    rows.forEach((doc, idx) => {
+      const slaDetail = getDetailedSlaStatus(doc);
+      csvLines.push([
+        idx + 1,
+        doc.number,
+        doc.requested,
+        doc.company,
+        doc.condition === 'new' ? 'Baru' : 'Lama',
+        doc.department,
+        doc.type,
+        doc.docNo,
+        doc.title,
+        doc.revision,
+        doc.pic,
+        doc.reviewer,
+        priorityLabels[doc.priority],
+        doc.sla,
+        doc.due,
+        statusLabels[doc.status],
+        slaDetail.badgeLabel,
+        doc.approval || '—',
+        doc.closed || '—'
+      ].map(v => `"${String(v || '').replace(/"/g, '""')}"`).join(','));
+    });
+
+    const blob = new Blob([csvLines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `QMS_Export_${new Date().toISOString().slice(0, 10)}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Print Report PDF
+  const printReport = () => {
+    window.print();
+  };
+
+  return (
+    <>
+      <div className="documents-top-wrap">
+        <PageHeading
+          eyebrow="INVENTARIS MUTU PERUSAHAAN"
+          title="Daftar Dokumen Mutu"
+          description="Basis data terintegrasi dokumen QMS, alur review, dan kepatuhan SLA."
+        />
+
+        <div className="documents-export-actions">
+          <button className="button secondary button-spreadsheet" onClick={() => setIsSheetModalOpen(true)}>
+            <span>📊</span> Google Spreadsheet
+          </button>
+          <button className="button secondary" onClick={exportCsv} title="Unduh CSV">
+            <span>📥</span> CSV
+          </button>
+          <button className="button secondary" onClick={exportXlsx} title="Unduh Excel XLSX">
+            <span>📗</span> Excel
+          </button>
+          <button className="button primary" onClick={printReport} title="Cetak atau Simpan PDF">
+            <span>🖨️</span> Cetak / PDF
+          </button>
+        </div>
       </div>
-      {error && <div className="data-error inline-data-error" role="alert">{error}</div>}{loading && <div className="data-loading">Memuat data pengajuan…</div>}
-      {actionMessage && <div className="inline-message" role="status">{actionMessage}</div>}
-      <div className="results-caption">Menampilkan <b>{rows.length}</b> dari {submissions.length} pengajuan</div>
-      <div className="table-wrap"><table className="documents-table"><thead><tr><th>DOKUMEN</th><th>DEPARTEMEN / JENIS</th><th>PIC / REVIEWER</th><th>PRIORITAS</th><th>STATUS</th><th>DEADLINE / SLA</th><th /></tr></thead><tbody>
-        {rows.map(doc => <tr key={doc.id}><td><Link href={`/documents/${doc.id}`} className="doc-cell"><span className="table-file-icon">▤</span><span><b>{doc.docNo}</b><small>{doc.title}</small></span></Link></td><td><b>{doc.department}</b><small>{doc.type} · Rev {doc.revision}</small></td><td><b>{doc.pic}</b><small>Review: {doc.reviewer}</small></td><td><PriorityBadge priority={doc.priority} /></td><td><StatusBadge status={doc.status} /></td><td><b>{doc.due}</b><small><SlaBadge doc={doc} /></small></td><td className="document-actions"><Link href={`/documents/${doc.id}`} className="row-more" aria-label={`Edit ${doc.title}`}>Edit</Link>{isAdmin && <button className="delete-document-button" disabled={deletingId === doc.id} onClick={() => void deleteDocument(doc.id, doc.title)}>{deletingId === doc.id ? 'Menghapus…' : 'Hapus'}</button>}</td></tr>)}
-      </tbody></table></div>
-      <div className="mobile-documents">{rows.map(doc => <div className="mobile-document-row" key={doc.id}><Link href={`/documents/${doc.id}`}><div><b>{doc.docNo}</b><SlaBadge doc={doc} /></div><h3>{doc.title}</h3><small>{doc.department} · {doc.pic}</small><div><StatusBadge status={doc.status} /><span className="due-label">Deadline {doc.due}</span></div></Link>{isAdmin && <button className="delete-document-button" disabled={deletingId === doc.id} onClick={() => void deleteDocument(doc.id, doc.title)}>{deletingId === doc.id ? 'Menghapus…' : 'Hapus pengajuan'}</button>}</div>)}</div>
-    </div>
-  </>;
+
+      <div className="panel documents-filter-panel">
+        <div className="filter-grid-doc">
+          <input
+            className="filter-search-input"
+            aria-label="Cari dokumen"
+            placeholder="Cari nomor, judul, PIC, reviewer, perusahaan..."
+            value={query}
+            onChange={event => setQuery(event.target.value)}
+          />
+
+          <select
+            aria-label="Filter Perusahaan"
+            value={company}
+            onChange={e => setCompany(e.target.value as Company | 'all')}
+            className="highlight-select"
+          >
+            <option value="all">Semua Perusahaan</option>
+            <option value="PT. Baramuda Bahari">PT. Baramuda Bahari</option>
+            <option value="PT. Mega Marine Pride">PT. Mega Marine Pride</option>
+          </select>
+
+          <select aria-label="Filter status alur" value={status} onChange={event => setStatus(event.target.value)}>
+            <option value="">Semua Status</option>
+            {statusOrder.map(item => (
+              <option value={item} key={item}>{statusLabels[item]}</option>
+            ))}
+          </select>
+
+          <select aria-label="Filter departemen" value={department} onChange={event => setDepartment(event.target.value)}>
+            <option value="">Semua Departemen</option>
+            {departments.map(item => (
+              <option key={item.id} value={item.name}>{item.name}</option>
+            ))}
+          </select>
+
+          <select aria-label="Filter jenis dokumen" value={type} onChange={event => setType(event.target.value)}>
+            <option value="">Semua Jenis</option>
+            {documentTypes.map(item => (
+              <option key={item.id} value={item.name}>{item.name}</option>
+            ))}
+          </select>
+
+          <select aria-label="Filter SLA" value={sla} onChange={event => setSla(event.target.value)}>
+            <option value="">Semua SLA</option>
+            <option value="on_time">Tepat Waktu</option>
+            <option value="due_soon">Mendekati Deadline</option>
+            <option value="overdue">Terlambat</option>
+            <option value="completed">Selesai</option>
+          </select>
+
+          <select aria-label="Filter prioritas" value={priority} onChange={event => setPriority(event.target.value)}>
+            <option value="">Semua Prioritas</option>
+            <option value="low">Rendah</option>
+            <option value="medium">Sedang</option>
+            <option value="high">Tinggi</option>
+            <option value="critical">Kritis</option>
+          </select>
+
+          <select aria-label="Filter reviewer" value={reviewer} onChange={event => setReviewer(event.target.value)}>
+            <option value="">Semua Reviewer</option>
+            {reviewers.map(item => (
+              <option key={item.id} value={item.name}>{item.name}</option>
+            ))}
+          </select>
+
+          <select aria-label="Filter PIC" value={pic} onChange={event => setPic(event.target.value)}>
+            <option value="">Semua PIC</option>
+            {Array.from(new Set(submissions.map(item => item.pic))).map(name => (
+              <option key={name} value={name}>{name}</option>
+            ))}
+          </select>
+
+          <select aria-label="Urutkan dokumen" value={sort} onChange={event => setSort(event.target.value)}>
+            <option value="due_asc">Deadline terdekat</option>
+            <option value="newest">Terbaru</option>
+            <option value="oldest">Terlama</option>
+            <option value="priority">Prioritas Tertinggi</option>
+            <option value="aging">Lama Proses (Aging)</option>
+          </select>
+        </div>
+
+        {error && <div className="data-error inline-data-error" role="alert">{error}</div>}
+        {loading && <div className="data-loading">Memuat data pengajuan…</div>}
+        {actionMessage && <div className="inline-message" role="status">{actionMessage}</div>}
+
+        <div className="results-caption">
+          Menampilkan <b>{rows.length}</b> dari {visible.length} pengajuan dokumen aktif
+        </div>
+
+        {/* Desktop Table View */}
+        <div className="table-wrap print-table-wrap">
+          <table className="documents-table">
+            <thead>
+              <tr>
+                <th>DOKUMEN</th>
+                <th>PERUSAHAAN</th>
+                <th>DEPARTEMEN / JENIS</th>
+                <th>PIC / REVIEWER</th>
+                <th>PRIORITAS</th>
+                <th>STATUS</th>
+                <th>DEADLINE / SLA</th>
+                <th className="no-print">AKSI</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(doc => (
+                <tr key={doc.id}>
+                  <td>
+                    <Link href={`/documents/${doc.id}`} className="doc-cell">
+                      <span className="table-file-icon">▤</span>
+                      <span>
+                        <b>{doc.docNo}</b>
+                        <small>{doc.title}</small>
+                      </span>
+                    </Link>
+                  </td>
+                  <td>
+                    <CompanyBadge company={doc.company} />
+                  </td>
+                  <td>
+                    <b>{doc.department}</b>
+                    <small>{doc.type} · Rev {doc.revision}</small>
+                  </td>
+                  <td>
+                    <b>{doc.pic}</b>
+                    <small>Reviewer: {doc.reviewer}</small>
+                  </td>
+                  <td>
+                    <PriorityBadge priority={doc.priority} />
+                  </td>
+                  <td>
+                    <StatusBadge status={doc.status} />
+                  </td>
+                  <td>
+                    <b>{formatDate(doc.due)}</b>
+                    <small><SlaBadge doc={doc} /></small>
+                  </td>
+                  <td className="document-actions no-print">
+                    <Link href={`/documents/${doc.id}`} className="row-more" aria-label={`Detail ${doc.title}`}>
+                      Buka
+                    </Link>
+                    <Link href={`/tracking?id=${doc.id}`} className="row-more tracking-link-btn" title="Lacak Alur">
+                      Lacak
+                    </Link>
+                    {isAdmin && (
+                      <button
+                        className="delete-document-button"
+                        disabled={deletingId === doc.id}
+                        onClick={() => void deleteDocument(doc.id, doc.title)}
+                        title="Arsipkan / Hapus Dokumen"
+                      >
+                        {deletingId === doc.id ? 'Menghapus…' : 'Hapus'}
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+              {rows.length === 0 && (
+                <tr>
+                  <td colSpan={8} style={{ textAlign: 'center', padding: '32px' }}>
+                    Tidak ada dokumen yang sesuai dengan filter aktif.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile Document Cards */}
+        <div className="mobile-documents no-print">
+          {rows.map(doc => (
+            <div className="mobile-document-row" key={doc.id}>
+              <Link href={`/documents/${doc.id}`}>
+                <div className="mobile-top">
+                  <b>{doc.docNo}</b>
+                  <SlaBadge doc={doc} />
+                </div>
+                <h3>{doc.title}</h3>
+                <div className="mobile-meta">
+                  <CompanyBadge company={doc.company} />
+                  <small>{doc.department} · {doc.pic}</small>
+                </div>
+                <div className="mobile-bottom">
+                  <StatusBadge status={doc.status} />
+                  <span className="due-label">Deadline {formatDate(doc.due)}</span>
+                </div>
+              </Link>
+              <div className="mobile-actions">
+                <Link href={`/tracking?id=${doc.id}`} className="button secondary button-small">
+                  Lacak Alur
+                </Link>
+                {isAdmin && (
+                  <button
+                    className="delete-document-button button-small"
+                    disabled={deletingId === doc.id}
+                    onClick={() => void deleteDocument(doc.id, doc.title)}
+                  >
+                    {deletingId === doc.id ? 'Menghapus…' : 'Hapus'}
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <GoogleSheetsModal
+        isOpen={isSheetModalOpen}
+        onClose={() => setIsSheetModalOpen(false)}
+      />
+    </>
+  );
 }
 
 export default function Documents() {
-  return <Suspense fallback={<div className="panel">Memuat dokumen…</div>}><DocumentsRoute /></Suspense>;
+  return (
+    <Suspense fallback={<div className="panel data-loading">Memuat dokumen…</div>}>
+      <DocumentsRoute />
+    </Suspense>
+  );
 }
 
 function DocumentsRoute() {
   const searchParams = useSearchParams();
-  return <DocumentsContent key={searchParams.toString()} initialStatus={searchParams.get('status') || ''} initialSla={searchParams.get('sla') || ''} />;
+  return (
+    <DocumentsContent
+      key={searchParams.toString()}
+      initialStatus={searchParams.get('status') || ''}
+      initialSla={searchParams.get('sla') || ''}
+    />
+  );
 }

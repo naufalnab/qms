@@ -2,51 +2,242 @@
 
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { AuthChangeEvent, Session } from '@supabase/supabase-js';
-import { demoSubmissions, getSlaStatus } from '@/lib/qms';
+import {
+  canReviewDocument,
+  getSlaStatus,
+} from '@/lib/qms';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
-import { QmsDataProvider } from '@/components/qms-data-provider';
+import { QmsDataProvider, useQmsData } from '@/components/qms-data-provider';
 import { ThemeMenu } from '@/components/theme-provider';
+import { GoogleSheetsModal } from '@/components/google-sheets-modal';
 
-const links = [['/','◫','Dashboard'],['/documents','▤','Dokumen'],['/actions','◉','Butuh Tindakan'],['/history','◷','Riwayat'],['/analytics','▥','Analitik'],['/master-data','⚙','Master Data']];
-const roleLabels: Record<string, string> = { admin: 'Administrator', qms: 'QMS', qms_section_head: 'QMS Section Head', qmsr: 'QMSR' };
-type Profile = { full_name: string; role: string };
+const links = [
+  ['/', '◫', 'Dashboard'],
+  ['/documents', '▤', 'Dokumen'],
+  ['/tracking', '⌖', 'Tracking'],
+  ['/actions', '◉', 'Antrian Review'],
+  ['/history', '◷', 'Riwayat'],
+  ['/analytics', '▥', 'Analitik'],
+  ['/master-data', '⚙', 'Master Data'],
+];
+
+const roleLabels: Record<string, string> = {
+  admin: 'Administrator',
+  qms: 'QMS (Submitter)',
+  qms_section_head: 'QMS Section Head',
+  qmsr: 'QMSR'
+};
+
+function ShellInner({ children }: { children: React.ReactNode }) {
+  const path = usePathname();
+  const router = useRouter();
+  const { filteredSubmissions, user } = useQmsData();
+  const [open, setOpen] = useState(false);
+  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
+
+  // Compute live action count based on current user role
+  const actionCount = useMemo(() => {
+    if (!user) return 0;
+    if (user.role === 'admin') {
+      return filteredSubmissions.filter(
+        d =>
+          d.status !== 'closed' &&
+          d.status !== 'rejected' &&
+          (canReviewDocument(user, d) ||
+            d.status === 'need_revision' ||
+            getSlaStatus(d) === 'overdue' ||
+            getSlaStatus(d) === 'due_soon')
+      ).length;
+    }
+    if (user.role === 'qms_section_head' || user.role === 'qmsr') {
+      return filteredSubmissions.filter(d => canReviewDocument(user, d)).length;
+    }
+    if (user.role === 'qms') {
+      return filteredSubmissions.filter(
+        d => d.createdBy === user.id && (d.status === 'need_revision' || d.status === 'approved')
+      ).length;
+    }
+    return 0;
+  }, [filteredSubmissions, user]);
+
+  const roleKey = user?.role || 'admin';
+  const roleName = roleLabels[roleKey] || 'Pengguna QMS';
+  const name = user?.fullName || 'Pengguna QMS';
+
+  const visibleLinks =
+    roleKey === 'admin'
+      ? links
+      : roleKey === 'qms'
+        ? links.filter(([href]) => ['/', '/documents', '/tracking', '/actions', '/history'].includes(href))
+        : ['qmsr', 'qms_section_head'].includes(roleKey)
+          ? links.filter(([href]) => ['/', '/documents', '/tracking', '/actions', '/history', '/analytics'].includes(href))
+          : links.filter(([href]) => href === '/');
+
+  const canCreate = user?.role === 'admin' || user?.role === 'qms';
+  const activeNav = links.find(([href]) => (href === '/' ? path === '/' : path.startsWith(href)));
+
+  const signOut = async () => {
+    await getSupabaseBrowserClient()?.auth.signOut();
+    router.replace('/login');
+  };
+
+  const bottomLinks = [
+    ['/', '⌂', 'Home'],
+    ['/documents', '▤', 'Dokumen'],
+    ...(canCreate ? [['/new', '+', 'Buat']] : []),
+    ['/tracking', '⌖', 'Lacak'],
+    ['/actions', '◉', 'Antrian'],
+  ];
+
+  return (
+    <div className="app-frame">
+      <aside className="sidebar">
+        <Link href="/" className="brand">
+          <span className="brand-mark">q</span>
+          <span>
+            <b>qms<span className="brand-dot">.</span></b>
+            <small>DOCUMENT MONITOR</small>
+          </span>
+        </Link>
+
+        <div className="workspace-label">WORKSPACE</div>
+
+        <nav>
+          {visibleLinks.map(([href, icon, label]) => (
+            <Link
+              key={href}
+              href={href}
+              className={`nav-item ${activeNav?.[0] === href ? 'active' : ''}`}
+            >
+              <span className="nav-icon">{icon}</span>
+              {label}
+              {label === 'Antrian Review' && actionCount > 0 && (
+                <span className="nav-count">{actionCount}</span>
+              )}
+            </Link>
+          ))}
+        </nav>
+
+        <div className="sidebar-quick-actions">
+          <button
+            className="sidebar-sheet-button"
+            onClick={() => setIsSheetModalOpen(true)}
+          >
+            <span>📊</span> Google Spreadsheet
+          </button>
+        </div>
+
+        <div className="sidebar-account">
+          <ThemeMenu />
+          <div className="sidebar-bottom">
+            <div className="avatar">
+              {name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase()}
+            </div>
+            <div className="user-copy">
+              <b>{name}</b>
+              <small>{roleName}</small>
+            </div>
+            <button className="sign-out" onClick={signOut} aria-label="Keluar" title="Keluar">
+              ↪
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      <main className="main-area">
+        <header className="mobile-header">
+          <button className="icon-button" onClick={() => setOpen(!open)} aria-label="Buka menu">
+            ☰
+          </button>
+          <Link href="/" className="brand compact">
+            <span className="brand-mark">q</span>
+            <b>qms<span className="brand-dot">.</span></b>
+          </Link>
+          <button
+            className="avatar small-avatar"
+            onClick={signOut}
+            aria-label="Keluar"
+            title="Keluar"
+          >
+            {name.split(' ').map(part => part[0]).slice(0, 2).join('').toUpperCase()}
+          </button>
+        </header>
+
+        {open && (
+          <div className="mobile-menu">
+            {visibleLinks.map(([href, icon, label]) => (
+              <Link key={href} href={href} onClick={() => setOpen(false)}>
+                {icon}　{label}
+              </Link>
+            ))}
+            <button
+              onClick={() => {
+                setOpen(false);
+                setIsSheetModalOpen(true);
+              }}
+            >
+              📊　Google Spreadsheet
+            </button>
+            <ThemeMenu mobile />
+            <button onClick={signOut}>↪　Keluar</button>
+          </div>
+        )}
+
+        <div className="page-content">{children}</div>
+      </main>
+
+      <nav className="bottom-nav">
+        {bottomLinks.map(([href, icon, label]) => (
+          <Link
+            key={href}
+            href={href}
+            className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'selected' : ''}
+          >
+            <span>{icon}</span>
+            {label}
+          </Link>
+        ))}
+      </nav>
+
+      <GoogleSheetsModal
+        isOpen={isSheetModalOpen}
+        onClose={() => setIsSheetModalOpen(false)}
+      />
+    </div>
+  );
+}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname();
   const router = useRouter();
-  const [open, setOpen] = useState(false);
   const [identity, setIdentity] = useState<{ id: string; email: string } | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [authLoading, setAuthLoading] = useState(!isDemoMode);
   const isLogin = path === '/login';
-  const actionCount = isDemoMode ? demoSubmissions.filter(doc => doc.status !== 'closed' && doc.status !== 'rejected' && (doc.status === 'need_revision' || doc.status === 'approved' || getSlaStatus(doc) === 'overdue' || getSlaStatus(doc) === 'due_soon')).length : null;
 
   useEffect(() => {
     if (isDemoMode) return;
     const supabase = getSupabaseBrowserClient();
     if (!supabase) return;
     let active = true;
+
     const applySession = (session: Session | null) => {
       if (!active) return;
       setIdentity(session?.user ? { id: session.user.id, email: session.user.email || '' } : null);
       setAuthLoading(false);
     };
-    void supabase.auth.getSession().then((result: { data: { session: Session | null } }) => applySession(result.data.session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) => applySession(session));
-    return () => { active = false; subscription.unsubscribe(); };
-  }, []);
 
-  useEffect(() => {
-    if (isDemoMode || !identity) return;
-    let active = true;
-    void getSupabaseBrowserClient()?.from('profiles').select('full_name, role').eq('id', identity.id).maybeSingle().then((result: { data: unknown }) => {
-      const data = result.data as Profile | null;
-      if (active && data) setProfile(data as Profile);
-    });
-    return () => { active = false; };
-  }, [identity]);
+    void supabase.auth.getSession().then((result: { data: { session: Session | null } }) => applySession(result.data.session));
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event: AuthChangeEvent, session: Session | null) =>
+      applySession(session)
+    );
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   useEffect(() => {
     if (isDemoMode || isLogin || authLoading) return;
@@ -54,39 +245,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [authLoading, identity, isLogin, path, router]);
 
   if (isLogin) return <>{children}</>;
-  if (!isDemoMode && (authLoading || !identity)) return <div className="auth-loading"><span className="brand-mark">q</span><p>Memeriksa sesi QMS…</p></div>;
+  if (!isDemoMode && (authLoading || !identity)) {
+    return (
+      <div className="auth-loading">
+        <span className="brand-mark">q</span>
+        <p>Memeriksa sesi QMS…</p>
+      </div>
+    );
+  }
 
-  const signOut = async () => {
-    await getSupabaseBrowserClient()?.auth.signOut();
-    setIdentity(null);
-    router.replace('/login');
-  };
-  const name = profile?.full_name || (isDemoMode ? 'Rosa Amelia' : identity?.email || 'Pengguna QMS');
-  const roleKey = isDemoMode ? 'admin' : profile?.role || '';
-  const role = roleLabels[roleKey] || 'Pengguna';
-  const visibleLinks = roleKey === 'admin'
-    ? links
-    : roleKey === 'qms'
-      ? links.filter(([href]) => ['/', '/documents', '/actions', '/history'].includes(href))
-      : ['qmsr', 'qms_section_head'].includes(roleKey)
-        ? links.filter(([href]) => ['/', '/documents', '/actions', '/history', '/analytics'].includes(href))
-        : links.filter(([href]) => href === '/');
-  const canCreateSubmission = roleKey === 'admin' || roleKey === 'qms';
-  const activeNav = links.find(([href]) => href === '/' ? path === '/' : path.startsWith(href));
-  const bottomLinks = [['/','⌂','Home'], ['/documents','▤','Dokumen'], ...(canCreateSubmission ? [['/new','+','Buat']] : []), ['/actions','◉','Tindakan']];
-
-  return <div className="app-frame">
-    <aside className="sidebar">
-      <Link href="/" className="brand"><span className="brand-mark">q</span><span><b>qms<span className="brand-dot">.</span></b><small>DOCUMENT MONITOR</small></span></Link>
-      <div className="workspace-label">WORKSPACE</div>
-      <nav>{visibleLinks.map(([href, icon, label]) => <Link key={href} href={href} className={`nav-item ${activeNav?.[0] === href ? 'active' : ''}`}><span className="nav-icon">{icon}</span>{label}{label === 'Butuh Tindakan' && actionCount !== null && <span className="nav-count">{actionCount}</span>}</Link>)}</nav>
-      <div className="sidebar-account"><ThemeMenu/><div className="sidebar-bottom"><div className="avatar">{name.split(' ').map(part => part[0]).slice(0,2).join('').toUpperCase()}</div><div className="user-copy"><b>{name}</b><small>{role}</small></div><button className="sign-out" onClick={signOut} aria-label="Keluar">↪</button></div></div>
-    </aside>
-    <main className="main-area">
-      <header className="mobile-header"><button className="icon-button" onClick={() => setOpen(!open)} aria-label="Buka menu">☰</button><Link href="/" className="brand compact"><span className="brand-mark">q</span><b>qms<span className="brand-dot">.</span></b></Link><button className="avatar small-avatar" onClick={signOut} aria-label="Keluar">{name.split(' ').map(part => part[0]).slice(0,2).join('').toUpperCase()}</button></header>
-      {open && <div className="mobile-menu">{visibleLinks.map(([href, icon, label]) => <Link key={href} href={href} onClick={() => setOpen(false)}>{icon}　{label}</Link>)}<ThemeMenu mobile/><button onClick={signOut}>↪　Keluar</button></div>}
-      <QmsDataProvider><div className="page-content">{children}</div></QmsDataProvider>
-    </main>
-    <nav className="bottom-nav">{bottomLinks.map(([href, icon, label]) => <Link key={href} href={href} className={(href === '/' ? path === '/' : path.startsWith(href)) ? 'selected' : ''}><span>{icon}</span>{label}</Link>)}</nav>
-  </div>;
+  return (
+    <QmsDataProvider>
+      <ShellInner>{children}</ShellInner>
+    </QmsDataProvider>
+  );
 }
