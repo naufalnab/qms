@@ -10,6 +10,7 @@ import {
   getActionRequired,
   getDetailedSlaStatus,
   getSlaStatus,
+  percentageOrNull,
   statusLabels,
   statusOrder,
   todayLabel,
@@ -19,7 +20,6 @@ import {
 } from '@/lib/qms';
 import { CompanyBadge, EmptyState, PageHeading, PriorityBadge, SlaBadge } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
-import { GoogleSheetsModal } from '@/components/google-sheets-modal';
 
 const statusTone: Record<Status, string> = {
   draft: 'var(--status-draft-fg)',
@@ -47,7 +47,6 @@ export default function Dashboard() {
   const [type, setType] = useState('');
   const [status, setStatus] = useState('');
   const [pic, setPic] = useState('');
-  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
 
   const {
     filteredSubmissions,
@@ -129,16 +128,12 @@ export default function Dashboard() {
 
   // SLA Compliance calculation
   const totalEvaluated = activeDocs.length;
-  const slaComplianceRate = totalEvaluated > 0
-    ? Math.round(((totalEvaluated - overdueDocs.length) / totalEvaluated) * 100)
-    : 100;
+  const slaComplianceRate = percentageOrNull(totalEvaluated - overdueDocs.length, totalEvaluated);
 
   // Approval Ratio calculation
   const totalDecided = filtered.filter(doc => doc.status === 'approved' || doc.status === 'closed' || doc.status === 'rejected').length;
   const totalApproved = filtered.filter(doc => doc.status === 'approved' || doc.status === 'closed').length;
-  const approvalRatio = totalDecided > 0
-    ? Math.round((totalApproved / totalDecided) * 100)
-    : 100;
+  const approvalRatio = percentageOrNull(totalApproved, totalDecided);
 
   // Average SLA Days
   const closedDocs = filtered.filter(doc => doc.status === 'closed');
@@ -148,7 +143,7 @@ export default function Dashboard() {
         const end = new Date(`${d.closed || d.due}T12:00:00+07:00`).getTime();
         return sum + Math.max(0, Math.floor((end - start) / 86400000));
       }, 0) / closedDocs.length).toFixed(1)
-    : '1.8';
+    : null;
 
   // Most critical document
   const mostCritical = attention[0];
@@ -201,12 +196,6 @@ export default function Dashboard() {
             <span>Entitas: <b>PT. Mega Marine Pride & PT. Baramuda Bahari</b></span>
           </div>
           <div className="dashboard-header-right">
-            <button
-              className="button secondary button-spreadsheet"
-              onClick={() => setIsSheetModalOpen(true)}
-            >
-              <span>📊</span> Google Spreadsheet
-            </button>
             {overdueDocs.length > 0 && (
               <Link href="/documents?sla=overdue" className="overdue-alert-pill">
                 <span>⚠️</span> {overdueDocs.length} Overdue
@@ -318,8 +307,8 @@ export default function Dashboard() {
             <span className="kpi-icon-pill green">⏱</span>
           </div>
           <div className="kpi-value-row">
-            <strong>{slaComplianceRate}%</strong>
-            <span className="kpi-tag success">Tepat Waktu</span>
+            <strong>{slaComplianceRate === null ? '—' : `${slaComplianceRate}%`}</strong>
+            <span className="kpi-tag success">{slaComplianceRate === null ? 'Belum dinilai' : 'Tepat Waktu'}</span>
           </div>
           <div className="kpi-subtext">
             <span>{overdueDocs.length} overdue</span>
@@ -334,8 +323,8 @@ export default function Dashboard() {
             <span className="kpi-icon-pill blue">✓</span>
           </div>
           <div className="kpi-value-row">
-            <strong>{approvalRatio}%</strong>
-            <span className="kpi-tag info">{totalApproved} Selesai</span>
+            <strong>{approvalRatio === null ? '—' : `${approvalRatio}%`}</strong>
+            <span className="kpi-tag info">{totalDecided === 0 ? 'Belum ada keputusan' : `${totalApproved} Disetujui`}</span>
           </div>
           <div className="kpi-subtext">
             <span>{count('need_revision')} revisi</span>
@@ -350,11 +339,11 @@ export default function Dashboard() {
             <span className="kpi-icon-pill purple">⚡</span>
           </div>
           <div className="kpi-value-row">
-            <strong>{avgSlaDays}</strong>
-            <span className="kpi-unit">hari kerja</span>
+            <strong>{avgSlaDays ?? '—'}</strong>
+            <span className="kpi-unit">hari kalender</span>
           </div>
           <div className="kpi-subtext">
-            <span>Target standar: 3–7 hari kalender</span>
+            <span>{closedDocs.length ? `Berdasarkan ${closedDocs.length} dokumen ditutup` : 'Belum ada dokumen ditutup'}</span>
           </div>
         </div>
 
@@ -369,14 +358,14 @@ export default function Dashboard() {
                 {mostCritical.docNo}
               </span>
             ) : (
-              <span className="kpi-doc-target">Semua Aman</span>
+              <span className="kpi-doc-target">{filtered.length === 0 ? 'Belum Ada Data' : 'Tidak Ada Prioritas'}</span>
             )}
           </div>
           <div className="kpi-subtext">
             {mostCritical ? (
               <span className="text-urgent">{getDetailedSlaStatus(mostCritical).badgeLabel}</span>
             ) : (
-              <span>Tidak ada dokumen yang terlambat</span>
+              <span>{filtered.length === 0 ? 'Belum ada pengajuan pada filter ini' : 'Tidak ada dokumen kritis'}</span>
             )}
           </div>
         </div>
@@ -399,18 +388,20 @@ export default function Dashboard() {
           </div>
 
           <div className="chart-bar-container">
-            {monthlyChartData.map(m => {
+            {monthlyChartData.every(m => m.total === 0 && m.approved === 0) ? (
+              <div className="chart-empty-message">Belum ada pengajuan atau persetujuan untuk lima bulan terakhir.</div>
+            ) : monthlyChartData.map(m => {
               const maxVal = Math.max(1, ...monthlyChartData.map(x => Math.max(x.total, x.approved)));
               const subH = Math.round((m.total / maxVal) * 120);
               const appH = Math.round((m.approved / maxVal) * 120);
               return (
                 <div className="chart-col" key={m.month}>
                   <div className="bars-pair">
-                    <div className="bar-sub" style={{ height: `${Math.max(12, subH)}px` }} title={`Pengajuan: ${m.total}`}>
-                      <span>{m.total}</span>
+                    <div className="bar-sub" style={{ height: `${subH}px` }} title={`Pengajuan: ${m.total}`}>
+                      <span>{m.total || ''}</span>
                     </div>
-                    <div className="bar-app" style={{ height: `${Math.max(12, appH)}px` }} title={`Disetujui: ${m.approved}`}>
-                      <span>{m.approved}</span>
+                    <div className="bar-app" style={{ height: `${appH}px` }} title={`Disetujui: ${m.approved}`}>
+                      <span>{m.approved || ''}</span>
                     </div>
                   </div>
                   <small className="chart-month-label">{m.month}</small>
@@ -538,21 +529,22 @@ export default function Dashboard() {
                 ? 'Tidak ada revisi yang perlu ditindaklanjuti'
                 : isReviewDashboard
                   ? 'Antrian review Anda kosong'
-                  : 'Semua dokumen berjalan sesuai jadwal'
+                  : filtered.length === 0 ? 'Belum ada dokumen pada filter ini' : 'Tidak ada dokumen yang membutuhkan tindakan'
             }
             detail={
               isReviewDashboard
                 ? 'Tidak ada dokumen yang menunggu review Anda saat ini.'
-                : 'Tidak ada dokumen yang mengalami kendala SLA pada filter terpilih.'
+                : filtered.length === 0
+                  ? 'Buat pengajuan baru atau ubah filter untuk memulai pemantauan dokumen.'
+                  : 'Tidak ada dokumen yang memerlukan tindakan pada filter terpilih.'
             }
+            action={filtered.length === 0 && canSubmitDocument(user)
+              ? <Link href="/new" className="button primary">+ Ajukan Dokumen Baru</Link>
+              : undefined}
           />
         )}
       </section>
 
-      <GoogleSheetsModal
-        isOpen={isSheetModalOpen}
-        onClose={() => setIsSheetModalOpen(false)}
-      />
     </>
   );
 }

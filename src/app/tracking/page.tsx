@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useMemo, useState } from 'react';
 import {
+  canSubmitDocument,
   formatDate,
   formatDateTime,
   getDetailedSlaStatus,
@@ -13,16 +14,14 @@ import {
 } from '@/lib/qms';
 import { CompanyBadge, EmptyState, PageHeading, PriorityBadge, SlaBadge, StatusBadge } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
-import { GoogleSheetsModal } from '@/components/google-sheets-modal';
 
 function TrackingContent() {
   const searchParams = useSearchParams();
   const initialId = searchParams.get('id');
-  const { filteredSubmissions, loading, error } = useQmsData();
+  const { filteredSubmissions, user, loading, error } = useQmsData();
 
   const [selectedId, setSelectedId] = useState<string>(initialId || '');
   const [query, setQuery] = useState('');
-  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
 
   const activeDoc: Submission | undefined = useMemo(() => {
     if (selectedId) {
@@ -53,8 +52,8 @@ function TrackingContent() {
         />
         <EmptyState
           title="Belum ada dokumen untuk dilacak"
-          detail="Pilih perusahaan lain atau ajukan dokumen baru untuk melihat jejak pelacakan."
-          action={<Link className="button primary" href="/new">+ Ajukan Dokumen Baru</Link>}
+          detail="Belum ada dokumen aktif yang dapat dilacak. Pengajuan baru akan muncul di sini."
+          action={canSubmitDocument(user) ? <Link className="button primary" href="/new">+ Ajukan Dokumen Baru</Link> : undefined}
         />
       </>
     );
@@ -99,12 +98,6 @@ function TrackingContent() {
           description="Lacak status, riwayat revisi, transparansi alur review, dan feedback QMSR."
         />
         <div className="tracking-header-buttons">
-          <button
-            className="button secondary button-spreadsheet"
-            onClick={() => setIsSheetModalOpen(true)}
-          >
-            <span>📊</span> Tab: Google Spreadsheet
-          </button>
           <Link
             className="button primary"
             href={`/documents/${activeDoc.id}`}
@@ -301,10 +294,6 @@ function TrackingContent() {
         </section>
       </div>
 
-      <GoogleSheetsModal
-        isOpen={isSheetModalOpen}
-        onClose={() => setIsSheetModalOpen(false)}
-      />
     </>
   );
 }

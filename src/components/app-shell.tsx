@@ -11,7 +11,6 @@ import {
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
 import { QmsDataProvider, useQmsData } from '@/components/qms-data-provider';
 import { ThemeMenu } from '@/components/theme-provider';
-import { GoogleSheetsModal } from '@/components/google-sheets-modal';
 
 const links = [
   ['/', '◫', 'Dashboard'],
@@ -35,7 +34,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const { filteredSubmissions, user } = useQmsData();
   const [open, setOpen] = useState(false);
-  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
 
   // Compute live action count based on current user role
   const actionCount = useMemo(() => {
@@ -120,15 +118,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
           ))}
         </nav>
 
-        <div className="sidebar-quick-actions">
-          <button
-            className="sidebar-sheet-button"
-            onClick={() => setIsSheetModalOpen(true)}
-          >
-            <span>📊</span> Google Spreadsheet
-          </button>
-        </div>
-
         <div className="sidebar-account">
           <ThemeMenu />
           <div className="sidebar-bottom">
@@ -172,14 +161,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
                 {icon}　{label}
               </Link>
             ))}
-            <button
-              onClick={() => {
-                setOpen(false);
-                setIsSheetModalOpen(true);
-              }}
-            >
-              📊　Google Spreadsheet
-            </button>
             <ThemeMenu mobile />
             <button onClick={signOut}>↪　Keluar</button>
           </div>
@@ -201,10 +182,6 @@ function ShellInner({ children }: { children: React.ReactNode }) {
         ))}
       </nav>
 
-      <GoogleSheetsModal
-        isOpen={isSheetModalOpen}
-        onClose={() => setIsSheetModalOpen(false)}
-      />
     </div>
   );
 }

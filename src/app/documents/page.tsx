@@ -17,7 +17,6 @@ import {
 import { CompanyBadge, PageHeading, PriorityBadge, SlaBadge, StatusBadge } from '@/components/ui';
 import { useQmsData } from '@/components/qms-data-provider';
 import { getSupabaseBrowserClient, isDemoMode } from '@/lib/supabase/client';
-import { GoogleSheetsModal } from '@/components/google-sheets-modal';
 
 function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string; initialSla: string }) {
   const { submissions, departments, documentTypes, reviewers, user, company, setCompany, loading, error, reload } = useQmsData();
@@ -33,7 +32,6 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
   const [reviewer, setReviewer] = useState('');
   const [pic, setPic] = useState('');
   const [sort, setSort] = useState('due_asc');
-  const [isSheetModalOpen, setIsSheetModalOpen] = useState(false);
 
   const deleteDocument = async (id: string, title: string) => {
     if (!isAdmin || isDemoMode) return;
@@ -191,9 +189,6 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
         />
 
         <div className="documents-export-actions">
-          <button className="button secondary button-spreadsheet" onClick={() => setIsSheetModalOpen(true)}>
-            <span>📊</span> Google Spreadsheet
-          </button>
           <button className="button secondary" onClick={exportCsv} title="Unduh CSV">
             <span>📥</span> CSV
           </button>
@@ -366,7 +361,13 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
               {rows.length === 0 && (
                 <tr>
                   <td colSpan={8} style={{ textAlign: 'center', padding: '32px' }}>
-                    Tidak ada dokumen yang sesuai dengan filter aktif.
+                    <div className="documents-no-results">
+                      <strong>{visible.length === 0 ? 'Belum ada dokumen aktif' : 'Tidak ada hasil yang cocok'}</strong>
+                      <span>{visible.length === 0
+                        ? 'Ajukan dokumen baru untuk memulai pemantauan QMS.'
+                        : 'Coba ubah kata pencarian atau filter dokumen.'}</span>
+                      {visible.length === 0 && isAdmin && <Link href="/new" className="button primary">+ Ajukan Dokumen Baru</Link>}
+                    </div>
                   </td>
                 </tr>
               )}
@@ -412,10 +413,6 @@ function DocumentsContent({ initialStatus, initialSla }: { initialStatus: string
         </div>
       </div>
 
-      <GoogleSheetsModal
-        isOpen={isSheetModalOpen}
-        onClose={() => setIsSheetModalOpen(false)}
-      />
     </>
   );
 }

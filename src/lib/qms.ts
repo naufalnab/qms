@@ -141,6 +141,13 @@ export const statusOrder: Status[] = ['draft', 'submitted', 'under_review', 'qms
 export const priorityLabels: Record<Priority, string> = { low: 'Rendah', medium: 'Sedang', high: 'Tinggi', critical: 'Kritis' };
 export const slaLabels = { on_time: 'Tepat Waktu', due_soon: 'Segera Jatuh Tempo', overdue: 'Terlambat', completed: 'Selesai' } as const;
 
+/** A rate cannot be meaningfully calculated when there are no eligible records. */
+export function percentageOrNull(numerator: number, denominator: number): number | null {
+  if (denominator <= 0) return null;
+  return Math.round((numerator / denominator) * 100);
+}
+
+
 export type TrackingStage = {
   step: number;
   id: string;
