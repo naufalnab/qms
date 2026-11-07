@@ -123,3 +123,4 @@
 |---|---|---|---|---|---|---|
 | HIS-01 | Timeline Audit Global | Semua Peran | Memeriksa seluruh aktivitas dokumen perusahaan | Filter pencarian teks dan filter perusahaan. | Tampilan kronologis aktivitas seluruh tim dengan penanda waktu presisi. | **VERIFIED** |
 | ANA-01 | Analitik Kinerja Dokumen | Semua Peran | Melihat ringkasan analitik dan volume berkas | Filter perusahaan (Gabungan, Baramuda, Mega Marine). | Metrik kepatuhan SLA, rata-rata durasi penyelesaian, dan proporsi unit kerja. | **VERIFIED** |
+

@@ -221,3 +221,4 @@ Berikut adalah ringkasan skenario pengajuan standar yang berhasil diselesaikan:
   6. *07 Nov 2026, 10:00 WIB:* QMSR menyetujui pengajuan tanpa catatan tambahan (`approved`).
   7. *07 Nov 2026, 11:00 WIB:* Pengaju melakukan penutupan siklus dan mendistribusikan salinan terkendali (`closed`).
 - **Hasil Audit:** Kepatuhan SLA terpenuhi 100% dalam 4 hari kerja dari target 7 hari kerja yang ditentukan.
+

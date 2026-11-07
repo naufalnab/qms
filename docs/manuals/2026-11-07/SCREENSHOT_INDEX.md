@@ -66,3 +66,4 @@
 | 58 | `SCR-MOB-03` | `mobile/SCR-MOB-03.png` | `mobile/SCR-MOB-03.png` | 390×844 | `/new?role=qms` | Tampilan mobile responsif: Formulir pengajuan dokumen baru | PDF 03, 06 |
 | 59 | `SCR-MOB-04` | `mobile/SCR-MOB-04.png` | `mobile/SCR-MOB-04.png` | 390×844 | `/tracking?role=qms` | Tampilan mobile responsif: Stepper pelacakan vertikal | PDF 01, 06 |
 | 60 | `SCR-MOB-05` | `mobile/SCR-MOB-05.png` | `mobile/SCR-MOB-05.png` | 390×844 | `/actions?role=qms_section_head` | Tampilan mobile responsif: Kartu antrian tugas Section Head | PDF 04, 06 |
+

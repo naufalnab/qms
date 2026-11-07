@@ -57,3 +57,4 @@ Berikut adalah rekomendasi peningkatan bertahap untuk rilis versi berikutnya (QM
 
 Aplikasi QMS Monitor telah memenuhi seluruh kriteria kelayakan operasional (*Definition of Done*) untuk diadopsi secara luas di lingkungan **PT. Mega Marine Pride** dan **PT. Baramuda Bahari**.
 Paket dokumentasi manual resmi ini siap diserahkan kepada Rosalia Pratiwi beserta jajaran pimpinan kendali mutu.
+

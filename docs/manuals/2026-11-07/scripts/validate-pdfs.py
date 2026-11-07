@@ -81,3 +81,4 @@ def validate_all_pdfs():
 
 if __name__ == "__main__":
     validate_all_pdfs()
+

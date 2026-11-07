@@ -96,3 +96,4 @@ docs/manuals/2026-11-07/
   node docs/manuals/2026-11-07/scripts/generate-manuals.js
   python3 docs/manuals/2026-11-07/scripts/validate-pdfs.py
   ```
+

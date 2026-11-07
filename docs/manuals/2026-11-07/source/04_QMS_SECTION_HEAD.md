@@ -141,3 +141,4 @@ Section Head dapat melakukan verifikasi dan penerusan dokumen langsung dari smar
 
 ![SCR-MOB-05](../screenshots/mobile/SCR-MOB-05.png)
 *Gambar 6.1: Antarmuka Antrian Tugas Section Head pada Perangkat Smartphone (SCR-MOB-05).*
+

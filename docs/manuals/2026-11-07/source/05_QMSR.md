@@ -135,3 +135,4 @@ Setiap catatan korektif atau apresiasi yang diberikan oleh QMSR secara otomatis 
 Dengan terselesaikannya persetujuan di QMS Monitor:
 1. Tidak diperlukan lagi tanda tangan fisik basah yang memakan waktu sirkulasi berminggu-minggu.
 2. Setiap pengesahan terikat pada akun resmi QMSR dengan catatan jejak audit yang memenuhi persyaratan regulasi dokumen elektronik ISO 9001:2015 Klausul 7.5 (*Documented Information*).
+

@@ -249,3 +249,4 @@ Untuk menjaga kinerja sistem tetap optimal, Administrator disarankan menjalankan
 - **Harian (08:30 WIB):** Memeriksa dasbor utama untuk melihat dokumen yang berstatus *SLA Terkritis / Mendekati Batas*, serta berkoordinasi dengan reviewer terkait jika terdapat dokumen mendesak.
 - **Mingguan (Jumat Sore):** Melakukan ekspor data Excel (.xlsx) untuk arsip cadangan mingguan di folder jaringan terproteksi perusahaan.
 - **Bulanan (Awal Bulan):** Mengaudit akun pengguna untuk memastikan seluruh karyawan mutasi atau nonaktif telah diperbarui hak aksesnya.
+

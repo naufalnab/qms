@@ -83,3 +83,4 @@ Berikut adalah kewenangan pengubahan status dokumen pada siklus hidup mutu:
    Pengaju dokumen (`qms`) tidak dapat menyetujui dokumen miliknya sendiri. Reviewer Tahap 1 (`qms_section_head`) tidak dapat memberikan persetujuan final yang merupakan wewenang mutlak QMSR (`qmsr`).
 3. **Integritas Audit Trail:**  
    Setiap perubahan status dan input catatan review dicatat secara otomatis bersama identitas aktor, peran, dan cap waktu (*timestamp*) Asia/Jakarta yang tidak dapat diubah kembali (*immutable*).
+

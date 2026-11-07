@@ -77,3 +77,4 @@
 | 58 | `SCR-MOB-03` | Tampilan Mobile: Form Pengajuan | `/new` | QMS Submitter | Mobile 390×844 | Form pengajuan responsif pada layar smartphone | PDF 03, 06 |
 | 59 | `SCR-MOB-04` | Tampilan Mobile: Tracking Milestone | `/tracking` | Semua Peran | Mobile 390×844 | Stepper vertikal responsif pada perangkat mobile | PDF 01, 06 |
 | 60 | `SCR-MOB-05` | Tampilan Mobile: Antrian Review | `/actions` | QMS Section Head | Mobile 390×844 | Kartu antrian tugas pada tata letak seluler | PDF 04, 06 |
+
