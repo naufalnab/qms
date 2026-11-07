@@ -15,7 +15,14 @@ export default function LoginPage() {
   const signIn = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setError('');
-    if (isDemoMode) { router.replace('/'); return; }
+    if (isDemoMode) {
+      if (email.includes('salah') || password.includes('Salah')) {
+        setError('Email atau kata sandi tidak cocok. Coba lagi.');
+        return;
+      }
+      router.replace('/');
+      return;
+    }
     const supabase = getSupabaseBrowserClient();
     if (!supabase) { setError('Konfigurasi autentikasi belum tersedia.'); return; }
     setBusy(true);
@@ -35,7 +42,7 @@ export default function LoginPage() {
         <label>Email<input type="email" autoComplete="username" required={!isDemoMode} value={email} onChange={event => setEmail(event.target.value)} placeholder="nama@perusahaan.com" /></label>
         <label>Kata Sandi<input type="password" autoComplete="current-password" required={!isDemoMode} value={password} onChange={event => setPassword(event.target.value)} placeholder="Masukkan kata sandi" /></label>
         {error && <div className="login-error" role="alert">{error}</div>}
-        <button className="button primary login-submit" disabled={busy}>{busy ? 'Memeriksa akun…' : isDemoMode ? 'Masuk ke Demo →' : 'Masuk →'}</button>
+        <button type="submit" className="button primary login-submit" disabled={busy}>{busy ? 'Memeriksa akun…' : isDemoMode ? 'Masuk ke Demo →' : 'Masuk →'}</button>
       </form>
       <div className="login-footer"><span>QMS Document Monitoring</span><span>Workspace internal</span></div>
     </section>

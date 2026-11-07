@@ -431,6 +431,7 @@ const make = (i: number, status: Status, requestOffset: number, opts: Partial<Su
     revision: `${String.fromCharCode(65 + (i % 4))}${i % 2 ? '.1' : ''}`,
     reason: i % 3 === 0 ? 'Pembaruan persyaratan tahunan' : 'Dokumen baru',
     pic: ['Rosalia Pratiwi', 'Dimas Pratama', 'Siti Rahma', 'Budi Santoso'][i % 4],
+    createdBy: 'demo-qms',
     reviewer: ['Junita Dwi Lia H.', 'Nina Putri', 'Rizky Hidayat'][i % 3],
     reviewerId: 'demo-reviewer-1',
     priority,

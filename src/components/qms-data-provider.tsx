@@ -30,13 +30,28 @@ type QmsData = {
   reload: () => Promise<void>;
 };
 
-const demoUser: AppUser = { id: 'demo-admin', fullName: 'Rosalia Pratiwi', role: 'admin' };
+const roleUsers: Record<AppRole, { name: string; id: string }> = {
+  admin: { name: 'Rosalia Pratiwi', id: 'demo-admin' },
+  qms: { name: 'Budi Santoso', id: 'demo-qms' },
+  qms_section_head: { name: 'Hendra Wijaya', id: 'demo-section-head' },
+  qmsr: { name: 'Junita Dwi Lia H.', id: 'demo-reviewer-1' }
+};
+
+function getDemoUser(): AppUser {
+  if (typeof window !== 'undefined') {
+    const p = new URLSearchParams(window.location.search).get('role') as AppRole | null;
+    if (p && roleUsers[p]) {
+      return { id: roleUsers[p].id, fullName: roleUsers[p].name, role: p };
+    }
+  }
+  return { id: 'demo-admin', fullName: 'Rosalia Pratiwi', role: 'admin' };
+}
 
 const QmsDataContext = createContext<QmsData>({
   submissions: demoSubmissions,
   filteredSubmissions: demoSubmissions,
   ...demoMasterData,
-  user: isDemoMode ? demoUser : null,
+  user: isDemoMode ? getDemoUser() : null,
   company: 'all',
   setCompany: () => {},
   loading: false,
@@ -49,7 +64,7 @@ export function QmsDataProvider({ children }: { children: React.ReactNode }) {
   const [masters, setMasters] = useState<Pick<QmsData, 'departments' | 'documentTypes' | 'reviewers' | 'availableReviewers'>>(
     isDemoMode ? demoMasterData : { departments: [], documentTypes: [], reviewers: [], availableReviewers: [] }
   );
-  const [user, setUser] = useState<AppUser | null>(isDemoMode ? demoUser : null);
+  const [user, setUser] = useState<AppUser | null>(isDemoMode ? getDemoUser() : null);
   const [company, setCompany] = useState<Company | 'all'>('all');
   const [loading, setLoading] = useState(!isDemoMode);
   const [error, setError] = useState('');
@@ -58,7 +73,7 @@ export function QmsDataProvider({ children }: { children: React.ReactNode }) {
     if (isDemoMode) {
       setSubmissions(demoSubmissions);
       setMasters(demoMasterData);
-      setUser(demoUser);
+      setUser(getDemoUser());
       setLoading(false);
       return;
     }

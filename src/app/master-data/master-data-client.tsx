@@ -11,6 +11,15 @@ type MasterItem = { id: string; name: string; detail: string; sla: number | null
 type UserItem = { id: string; email: string; full_name: string; role: string; is_active: boolean; invited: boolean };
 const roleLabels: Record<string, string> = { admin: 'Admin', qms: 'QMS', qms_section_head: 'QMS Section Head', qmsr: 'QMSR' };
 
+const DEMO_USERS: UserItem[] = [
+  { id: 'demo-u1', email: 'rosalia.pratiwi@megamarinepride.com', full_name: 'Rosalia Pratiwi', role: 'admin', is_active: true, invited: false },
+  { id: 'demo-u2', email: 'budi.santoso@megamarinepride.com', full_name: 'Budi Santoso', role: 'qms', is_active: true, invited: false },
+  { id: 'demo-u3', email: 'ahmad.faisal@baramuda.com', full_name: 'Ahmad Faisal', role: 'qms_section_head', is_active: true, invited: false },
+  { id: 'demo-u4', email: 'junita.lia@megamarinepride.com', full_name: 'Junita Dwi Lia H.', role: 'qmsr', is_active: true, invited: false },
+  { id: 'demo-u5', email: 'dimas.pratama@baramuda.com', full_name: 'Dimas Pratama', role: 'qms', is_active: true, invited: false },
+  { id: 'demo-u6', email: 'rina.anggraini@baramuda.com', full_name: 'Rina Anggraini', role: 'qms', is_active: false, invited: false },
+];
+
 export default function MasterData() {
   const [tab, setTab] = useState<Tab>('Departemen');
   const [name, setName] = useState('');
@@ -33,7 +42,11 @@ export default function MasterData() {
   const [editingUserRole, setEditingUserRole] = useState('qms');
   const { departments, documentTypes, reviewers, availableReviewers, loading, error, reload } = useQmsData();
   useEffect(() => {
-    if (isDemoMode) return;
+    if (isDemoMode) {
+      setIsAdmin(true);
+      setUsers(DEMO_USERS);
+      return;
+    }
     const client = getSupabaseBrowserClient();
     if (!client) return;
     let active = true;
@@ -46,6 +59,7 @@ export default function MasterData() {
     return () => { active = false; };
   }, []);
   useEffect(() => {
+    if (isDemoMode) return;
     if (tab !== 'Pengguna' || !isAdmin) return;
     let active = true;
     void listManagedUsers().then(result => {
@@ -185,6 +199,21 @@ export default function MasterData() {
 
   const createUser = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault(); setBusy(true); setMessage('');
+    if (isDemoMode) {
+      const newUser: UserItem = {
+        id: `demo-u${Date.now()}`,
+        email: newUserEmail,
+        full_name: newUserName,
+        role: newUserRole,
+        is_active: true,
+        invited: false
+      };
+      setUsers(prev => [newUser, ...prev]);
+      setMessage('Pengguna baru berhasil ditambahkan (Demo Mode).');
+      setNewUserEmail(''); setNewUserName(''); setNewUserPassword(''); setNewUserRole('qms');
+      setBusy(false);
+      return;
+    }
     const result = await createManagedUser(newUserEmail, newUserName, newUserPassword, newUserRole);
     if (result.error) setMessage(result.error);
     else {
@@ -197,6 +226,13 @@ export default function MasterData() {
 
   const saveUser = async (event: React.FormEvent<HTMLFormElement>, user: UserItem) => {
     event.preventDefault(); setBusy(true); setMessage('');
+    if (isDemoMode) {
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, full_name: editingUserName, role: editingUserRole } : u));
+      setMessage('Peran pengguna berhasil diperbarui (Demo Mode).');
+      setEditingUserId('');
+      setBusy(false);
+      return;
+    }
     const result = await updateManagedUser(user.id, editingUserName, editingUserRole, user.is_active);
     if (result.error) setMessage(result.error);
     else { setMessage(result.message || 'Pengguna berhasil diperbarui.'); setEditingUserId(''); await refreshUsers(); }
@@ -205,6 +241,12 @@ export default function MasterData() {
 
   const toggleUser = async (user: UserItem) => {
     setBusy(true); setMessage('');
+    if (isDemoMode) {
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, is_active: !u.is_active } : u));
+      setMessage(`Status pengguna ${user.full_name} berhasil diperbarui (Demo Mode).`);
+      setBusy(false);
+      return;
+    }
     const result = await updateManagedUser(user.id, user.full_name, user.role, !user.is_active);
     if (result.error) setMessage(result.error);
     else { setMessage(result.message || 'Status pengguna diperbarui.'); await refreshUsers(); }
@@ -223,7 +265,7 @@ export default function MasterData() {
           <input required type="email" value={newUserEmail} onChange={event => setNewUserEmail(event.target.value)} placeholder="Email pengguna" aria-label="Email pengguna baru" />
           <input required type="password" autoComplete="new-password" minLength={8} maxLength={72} value={newUserPassword} onChange={event => setNewUserPassword(event.target.value)} placeholder="Kata sandi awal (min. 8 karakter)" aria-label="Kata sandi awal pengguna" />
           <select value={newUserRole} onChange={event => setNewUserRole(event.target.value)} aria-label="Role pengguna baru">{Object.entries(roleLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select>
-          <button className="button primary" disabled={busy || isDemoMode}>{busy ? 'Menyimpan…' : 'Tambah Pengguna'}</button>
+          <button className="button primary" disabled={busy}>{busy ? 'Menyimpan…' : 'Tambah Pengguna'}</button>
         </form>}
         {tab !== 'Pengguna' && (tab !== 'Reviewer' || isAdmin) && <form onSubmit={save}>
           {editingId ? <>
