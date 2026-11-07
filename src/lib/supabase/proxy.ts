@@ -22,7 +22,9 @@ export async function updateSession(request: NextRequest) {
   const claims = data?.claims;
   const isLogin = request.nextUrl.pathname === '/login';
   const isAuthCallback = request.nextUrl.pathname === '/auth/callback';
-  if ((error || !claims) && !isLogin && !isAuthCallback) {
+  const isPublicApi = request.nextUrl.pathname.startsWith('/api/sheets/');
+  const isAcceptInvite = request.nextUrl.pathname === '/accept-invite';
+  if ((error || !claims) && !isLogin && !isAuthCallback && !isPublicApi && !isAcceptInvite) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = '/login';
     loginUrl.searchParams.set('next', request.nextUrl.pathname);
